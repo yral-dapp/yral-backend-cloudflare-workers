@@ -1,0 +1,24 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "workers/**"
+
+jobs:
+  deploy-sample-worker:
+    name: Deploy sample-worker
+    if: contains(github.event.head_commit.modified, 'workers/sample-worker/')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/sample-worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: "workers/sample-worker"
