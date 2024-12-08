@@ -1,0 +1,17 @@
+{
+  "name": "yral-backend",
+  "private": true,
+  "workspaces": [
+    "workers/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev": "npm run dev --workspaces",
+    "test": "npm run test --workspaces",
+    "dev:sample-worker": "cd workers/sample-worker && npm run dev",
+    "deploy:sample-worker": "cd workers/sample-worker && npm run deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.93.0"
+  }
+}
