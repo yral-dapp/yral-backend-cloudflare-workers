@@ -33,7 +33,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             // get the existing cache
             let existing_items = ctx
-                .kv("yral_ml_feed_cache")?
+                .kv("yral-ml-feed-cache")?
                 .get(canister_id)
                 .json::<Vec<CustomMlFeedCacheItem>>()
                 .await?
@@ -49,7 +49,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let json_data = serde_json::to_string(&combined_items)?;
 
             return match ctx
-                .kv("yral_ml_feed_cache")?
+                .kv("yral-ml-feed-cache")?
                 .put(canister_id, json_data)?
                 .execute()
                 .await
@@ -78,7 +78,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 .unwrap_or(50);
 
             let items = ctx
-                .kv("yral_ml_feed_cache")?
+                .kv("yral-ml-feed-cache")?
                 .get(canister_id)
                 .json::<Vec<CustomMlFeedCacheItem>>()
                 .await?
