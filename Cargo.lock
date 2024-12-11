@@ -2486,6 +2486,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "yral-ml-feed-cache"
+version = "0.1.0"
+dependencies = [
+ "cfg-if 0.1.10",
+ "console_error_panic_hook",
+ "serde",
+ "serde_json",
+ "worker",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"

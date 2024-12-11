@@ -1,0 +1,17 @@
+name = "yral-ml-feed-cache"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+ENVIRONMENT = "production"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[[kv_namespaces]]
+binding = "yral_ml_feed_cache"
+id = "ae4d0753c05c40b7aabee78c3ebbf6d4"
+preview_id = "ae4d0753c05c40b7aabee78c3ebbf6d4"

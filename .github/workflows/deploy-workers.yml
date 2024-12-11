@@ -1,0 +1,28 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "workers/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+jobs:
+  deploy-workers:
+    name: Deploy ${{ matrix.worker }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        worker: [yral-ml-feed-cache-worker] # add more workers here
+    defaults:
+      run:
+        working-directory: workers/${{ matrix.worker }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: "workers/${{ matrix.worker }}"
