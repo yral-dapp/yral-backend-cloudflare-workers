@@ -12,6 +12,6 @@ ENVIRONMENT = "production"
 vars = { ENVIRONMENT = "development" }
 
 [[kv_namespaces]]
-binding = "yral_ml_feed_cache"
-id = "ae4d0753c05c40b7aabee78c3ebbf6d4"
-preview_id = "ae4d0753c05c40b7aabee78c3ebbf6d4"
+binding = "yral-ml-feed-cache"
+id = "ea145fc839bd42f9bf2d34b950ddbda5"
+preview_id = "ea145fc839bd42f9bf2d34b950ddbda5"
