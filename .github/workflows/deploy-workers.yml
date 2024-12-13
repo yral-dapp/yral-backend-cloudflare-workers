@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        worker: [yral-ml-feed-cache] # add more workers here
+        worker: [global-feed-cache-job] # add more workers here
     defaults:
       run:
         working-directory: workers/${{ matrix.worker }}
