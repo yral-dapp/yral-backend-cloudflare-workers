@@ -1,5 +1,5 @@
 [workspace]
-members = [ "workers/sample-worker", "workers/yral-ml-feed-cache","workers/yral-onchain-backend"]
+members = [ "workers/global-feed-cache-job", "workers/sample-worker", "workers/yral-ml-feed-cache","workers/yral-onchain-backend"]
 
 [workspace.dependencies]
 worker = { version = "0.4.2" }
