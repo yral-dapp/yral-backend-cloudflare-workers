@@ -13,4 +13,4 @@ vars = { ENVIRONMENT = "development" }
 
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/10 * * * *"]
