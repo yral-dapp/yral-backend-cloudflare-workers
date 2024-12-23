@@ -1,0 +1,12 @@
+name = "storj-bulk-upload"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release --features 'storj-bulk-upload/local'"
+
+[vars]
+ENVIRONMENT = "production"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
