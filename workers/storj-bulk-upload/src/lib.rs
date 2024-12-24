@@ -17,9 +17,19 @@ fn start() {
 async fn fetch(_req: Request, _env: Env, _ctx: WorkerContext) -> Result<Response> {
     let admin = AdminCanisters::new(AdminCanisters::get_identity());
 
-    let items: anyhow::Result<Vec<_>> = posts::load_items(Arc::new(admin))
+    let item_stream = posts::load_items(Arc::new(admin))
         .await
-        .expect("TODO: handle error when items can't be loaded")
+        .context("failed to start item stream");
+
+    let item_stream = match item_stream {
+        Ok(i) => i,
+        Err(err) => {
+            console_error!("{err}");
+            return Response::error("Failed to start item stream", 500);
+        }
+    };
+
+    let items: anyhow::Result<Vec<_>> = item_stream
         .try_collect()
         .await
         .context("Couldn't load items");

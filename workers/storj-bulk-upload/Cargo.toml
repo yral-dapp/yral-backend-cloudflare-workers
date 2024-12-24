@@ -28,7 +28,7 @@ futures.workspace = true
 anyhow = "1.0.95"
 
 [features]
-local = []
+local = ["yral-canisters-common/local"]
 
 [profile.release]
 lto = true

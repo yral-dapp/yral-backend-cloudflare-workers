@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::{future, stream, StreamExt, TryStreamExt};
+use worker::console_error;
 use yral_canisters_client::individual_user_template::{
     GetPostsOfUserProfileError, IndividualUserTemplate, PostDetailsForFrontend,
 };
@@ -62,6 +63,7 @@ pub(crate) async fn load_items<'a>(
                     .await
                     .get_user_canister_list()
                     .await
+                    .inspect_err(|err| console_error!("{err}"))
             }
         })
         .and_then(|list| future::ok(stream::iter(list).map(anyhow::Ok)))
@@ -70,7 +72,9 @@ pub(crate) async fn load_items<'a>(
             let admin = admin_for_individual_user.clone();
             async move {
                 let index = admin.individual_user_for(user_principal).await;
-                load_all_posts(&index).await
+                load_all_posts(&index)
+                    .await
+                    .inspect_err(|err| console_error!("{err}"))
             }
         })
         .and_then(|list| future::ok(stream::iter(list).map(anyhow::Ok)))

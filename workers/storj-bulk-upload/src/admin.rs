@@ -41,14 +41,11 @@ impl AdminCanisters {
     }
 
     pub async fn platform_orchestrator(&self) -> PlatformOrchestrator<'_> {
-        // Logically, local id should be used when running in local mode but the
-        // backend returns `canister_not_found` when I actually use the local
-        // version. oddly, when I use ic id, everything works locally?
         cfg_if! {
             if #[cfg(feature = "local")] {
-                use yral_canisters_client::ic::PLATFORM_ORCHESTRATOR_ID;
-            } else {
                 use yral_canisters_client::local::PLATFORM_ORCHESTRATOR_ID;
+            } else {
+                use yral_canisters_client::ic::PLATFORM_ORCHESTRATOR_ID;
             }
         }
 
