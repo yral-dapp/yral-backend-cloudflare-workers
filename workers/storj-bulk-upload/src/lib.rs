@@ -1,12 +1,17 @@
 mod admin;
 mod posts;
 
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use admin::AdminCanisters;
 use anyhow::Context;
 use futures::TryStreamExt;
-use worker::{console_error, event, Context as WorkerContext, Env, Request, Response, Result};
+use worker::{
+    console_error, event, query, Context as WorkerContext, Env, Request, Response, Result,
+};
 
 #[event(start)]
 fn start() {
@@ -14,8 +19,9 @@ fn start() {
 }
 
 #[event(fetch, respond_with_errors)]
-async fn fetch(_req: Request, _env: Env, _ctx: WorkerContext) -> Result<Response> {
+async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response> {
     let admin = AdminCanisters::new(AdminCanisters::get_identity());
+    let work_items = env.d1("STORJ_STAGING_DB")?;
 
     let item_stream = posts::load_items(Arc::new(admin))
         .await
@@ -29,18 +35,41 @@ async fn fetch(_req: Request, _env: Env, _ctx: WorkerContext) -> Result<Response
         }
     };
 
-    let items: anyhow::Result<Vec<_>> = item_stream
-        .try_collect()
+    let total = AtomicU64::new(0);
+
+    // the operation is io bound, so this number can be optimized to saturate
+    // the network of the machine running the worker
+    const CONCURRENCY_FACTOR: usize = 100;
+    let res = item_stream
+        .try_for_each_concurrent(CONCURRENCY_FACTOR, |item| {
+            let total = &total;
+            let work_items = &work_items;
+            async move {
+                let q = query!(
+                    work_items,
+                    "INSERT INTO work_items (post_id, video_id, publisher_user_id) VALUES (?1, ?2, ?3)",
+                    &item.post_id,
+                    &item.video_id,
+                    &item.publisher_user_id,
+                )
+                .inspect_err(|err| console_error!("Couldn't prepare statement: {err}"))?;
+                q.run()
+                    .await
+                    .inspect_err(|err| console_error!("Couldn't insert into db: {err}"))?;
+                total.fetch_add(1, Ordering::Relaxed);
+                anyhow::Ok(())
+            }
+        })
         .await
-        .context("Couldn't load items");
+        .context("One of the task returned error");
 
-    let items = match items {
-        Ok(items) => items,
-        Err(err) => {
-            console_error!("{err}");
-            return Response::error("Failed to load items", 500);
-        }
-    };
+    if let Err(err) = res {
+        console_error!("{err}");
+        return Response::error("Failed to load items", 500);
+    }
 
-    Response::from_json(&items)
+    Response::ok(format!(
+        "A total of {} posts were added to item store",
+        total.load(Ordering::SeqCst)
+    ))
 }

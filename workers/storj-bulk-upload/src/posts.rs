@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::{future, stream, StreamExt, TryStreamExt};
-use worker::console_error;
+use worker::{console_error, console_log};
 use yral_canisters_client::individual_user_template::{
     GetPostsOfUserProfileError, IndividualUserTemplate, PostDetailsForFrontend,
 };
@@ -11,8 +11,9 @@ use crate::admin::AdminCanisters;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Default)]
 pub(crate) struct Item {
-    video_id: String,
-    publisher_user_id: String,
+    pub(crate) video_id: String,
+    pub(crate) publisher_user_id: String,
+    pub(crate) post_id: u64,
     // TODO: extra metadata
 }
 
@@ -20,12 +21,12 @@ pub(crate) struct Item {
 async fn load_all_posts(
     user: &IndividualUserTemplate<'_>,
 ) -> anyhow::Result<Vec<PostDetailsForFrontend>> {
-    const LIMIT: u64 = 100;
+    const LIMIT: usize = 100;
     let mut posts = Vec::new();
 
-    for page in 0.. {
+    for page in (0..).step_by(LIMIT) {
         let post_res = user
-            .get_posts_of_this_user_profile_with_pagination_cursor(page, LIMIT)
+            .get_posts_of_this_user_profile_with_pagination_cursor(page, LIMIT as u64)
             .await
             .context("Couldn't get post")?;
 
@@ -63,6 +64,7 @@ pub(crate) async fn load_items<'a>(
                     .await
                     .get_user_canister_list()
                     .await
+                    .inspect(|users| console_log!("found {} users", users.len()))
                     .inspect_err(|err| console_error!("{err}"))
             }
         })
@@ -74,6 +76,9 @@ pub(crate) async fn load_items<'a>(
                 let index = admin.individual_user_for(user_principal).await;
                 load_all_posts(&index)
                     .await
+                    .inspect(|posts| {
+                        console_log!("found {} posts for {}", posts.len(), user_principal)
+                    })
                     .inspect_err(|err| console_error!("{err}"))
             }
         })
@@ -83,6 +88,7 @@ pub(crate) async fn load_items<'a>(
             post.map(|post| Item {
                 video_id: post.video_uid,
                 publisher_user_id: post.created_by_user_principal_id.to_text(),
+                post_id: post.id,
             })
         });
 

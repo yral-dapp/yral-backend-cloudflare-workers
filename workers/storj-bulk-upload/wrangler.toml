@@ -3,6 +3,7 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-01"
 
 [build]
+# TODO: Move this build command to build.sh, which distinguishes between local and prod builds
 command = "cargo install -q worker-build && worker-build --release --features 'storj-bulk-upload/local'"
 
 [vars]
@@ -10,3 +11,9 @@ ENVIRONMENT = "production"
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
+
+[[d1_databases]]
+binding = "STORJ_STAGING_DB"
+database_name = "STORJ_STAGING_DB"
+database_id = "b1490f77-c608-49d8-89cc-7b73703df6b5"
+

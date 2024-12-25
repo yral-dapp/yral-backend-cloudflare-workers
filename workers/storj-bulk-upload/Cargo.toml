@@ -10,7 +10,7 @@ wasm-opt = false
 crate-type = ["cdylib"]
 
 [dependencies]
-worker.workspace = true
+worker = { workspace = true, features = ["d1"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 cfg-if = "0.1.2"
