@@ -69,7 +69,7 @@ pub(crate) async fn load_items<'a>(
             }
         })
         .and_then(|list| future::ok(stream::iter(list).map(anyhow::Ok)))
-        .try_flatten()
+        .try_flatten_unordered(None)
         .and_then(move |user_principal| {
             let admin = admin_for_individual_user.clone();
             async move {
@@ -83,7 +83,7 @@ pub(crate) async fn load_items<'a>(
             }
         })
         .and_then(|list| future::ok(stream::iter(list).map(anyhow::Ok)))
-        .try_flatten()
+        .try_flatten_unordered(None)
         .map(|post| {
             post.map(|post| Item {
                 video_id: post.video_uid,
