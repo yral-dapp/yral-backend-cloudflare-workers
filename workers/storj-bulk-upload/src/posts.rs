@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use futures::{future, stream, StreamExt, TryStreamExt};
 use worker::{console_error, console_log};
 use yral_canisters_client::individual_user_template::{
@@ -20,6 +21,7 @@ pub(crate) struct Item {
 /// loads all posts for the given user and buffers into a vec before returning
 async fn load_all_posts(
     user: &IndividualUserTemplate<'_>,
+    low_pass: DateTime<Utc>,
 ) -> anyhow::Result<Vec<PostDetailsForFrontend>> {
     const LIMIT: usize = 100;
     let mut posts = Vec::new();
@@ -40,11 +42,19 @@ async fn load_all_posts(
         posts.extend(post.into_iter())
     }
 
+    posts.retain(|post| {
+        let created_at = DateTime::from_timestamp_nanos(post.created_at.nanos_since_epoch as i64);
+
+        // MUST BE NON-INCLUSIVE
+        created_at < low_pass
+    });
+
     Ok(posts)
 }
 
 pub(crate) async fn load_items<'a>(
     admin: Arc<AdminCanisters>,
+    low_pass: DateTime<Utc>,
 ) -> anyhow::Result<impl futures::Stream<Item = anyhow::Result<Item>>> {
     let subs = admin
         .platform_orchestrator()
@@ -74,7 +84,7 @@ pub(crate) async fn load_items<'a>(
             let admin = admin_for_individual_user.clone();
             async move {
                 let index = admin.individual_user_for(user_principal).await;
-                load_all_posts(&index)
+                load_all_posts(&index, low_pass)
                     .await
                     .inspect(|posts| {
                         console_log!("found {} posts for {}", posts.len(), user_principal)

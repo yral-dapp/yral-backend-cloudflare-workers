@@ -3,8 +3,8 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-      "dev": "wrangler dev --local",
-      "dev:remote": "wrangler dev --remote",
+      "dev": "wrangler dev --local --env development",
+      "dev:remote": "wrangler dev --remote --env development",
       "deploy": "wrangler deploy"
     }
   }

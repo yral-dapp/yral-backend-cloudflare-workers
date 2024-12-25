@@ -26,6 +26,7 @@ yral-testcontainers = { git = "https://github.com/yral-dapp/yral-testcontainers"
 getrandom = { version = "0.2.15", features = ["js"] }
 futures.workspace = true
 anyhow = "1.0.95"
+chrono = "0.4.39"
 
 [features]
 local = ["yral-canisters-common/local"]

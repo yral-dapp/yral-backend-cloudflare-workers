@@ -8,11 +8,23 @@ command = "cargo install -q worker-build && worker-build --release --features 's
 
 [vars]
 ENVIRONMENT = "production"
-
-[env.development]
-vars = { ENVIRONMENT = "development" }
+# the filter timestamp must be set from the dashboard
+# all posts under this timestamp will be duplicated (non-inclusively)
+# must be RFC3339
+# must be UTC
+# example value:
+# LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z"
 
 [[d1_databases]]
+binding = "STORJ_STAGING_DB"
+database_name = "STORJ_STAGING_DB"
+database_id = "b1490f77-c608-49d8-89cc-7b73703df6b5"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z" 
+
+[[env.development.d1_databases]]
 binding = "STORJ_STAGING_DB"
 database_name = "STORJ_STAGING_DB"
 database_id = "b1490f77-c608-49d8-89cc-7b73703df6b5"

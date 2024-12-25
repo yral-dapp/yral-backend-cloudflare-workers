@@ -8,6 +8,7 @@ use std::sync::{
 
 use admin::AdminCanisters;
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use worker::{
     console_error, event, query, Context as WorkerContext, Env, Request, Response, Result,
@@ -22,8 +23,19 @@ fn start() {
 async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response> {
     let admin = AdminCanisters::new(AdminCanisters::get_identity());
     let work_items = env.d1("STORJ_STAGING_DB")?;
+    let low_pass = env
+        .var("LOW_PASS_TIMESTAMP")?
+        .to_string()
+        .parse::<DateTime<Utc>>();
+    let low_pass = match low_pass {
+        Ok(l) => l,
+        Err(err) => {
+            console_error!("Couldn't parse the low pass timestamp: {err}");
+            return Response::error("Couldn't parse the low pass timestamp", 500);
+        }
+    };
 
-    let item_stream = posts::load_items(Arc::new(admin))
+    let item_stream = posts::load_items(Arc::new(admin), low_pass)
         .await
         .context("failed to start item stream");
 
