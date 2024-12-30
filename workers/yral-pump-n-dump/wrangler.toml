@@ -1,0 +1,16 @@
+name = "yral-pump-n-dump"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-12-22"
+
+[durable_objects]
+bindings = [
+  { name = "USER_DOLLR_BALANCE", class_name = "UserDollrBalance" },
+  { name = "GAME_STATE", class_name = "GameState" }
+]
+
+[[migrations]]
+tag = "v0.1"
+new_classes = ["UserDollrBalance", "GameState"]
+
+[build]
+command = "./build.sh"

@@ -14,6 +14,7 @@
     "dev:global-feed-cache-job": "cd workers/global-feed-cache-job && npm run dev"
   },
   "devDependencies": {
-    "wrangler": "^3.93.0"
+    "miniflare": "^3.20241218.0",
+    "wrangler": "^3.99.0"
   }
 }
