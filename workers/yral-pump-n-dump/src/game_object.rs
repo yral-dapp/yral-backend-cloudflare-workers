@@ -1,13 +1,18 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{hash_map, HashMap},
+    rc::Rc,
+};
 
 use candid::{Nat, Principal};
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 use worker::*;
 
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     balance_object::{AddRewardReq, DecrementReq},
-    consts::GDOLLR_TO_E8S,
+    consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     websocket::GameDirection,
 };
 
@@ -18,6 +23,8 @@ pub struct GameState {
     start_epoch_ms: u64,
     pumps: u64,
     dumps: u64,
+    // Principal: (pumps, dumps)
+    bets: HashMap<Principal, [u64; 2]>,
     backend: GameBackend,
 }
 
@@ -35,28 +42,76 @@ pub enum GameResult {
     Looser,
 }
 
-struct Reward {
-    creator: Nat,
-    liquidity_pool: Nat,
-    winner: Nat,
+struct RewardIter {
+    pub liquidity_pool: Nat,
+    reward_pool: Nat,
+    remaining: Nat,
+    creator: Option<Principal>,
+    bet_idx: usize,
+    bet_cnt: u64,
+    inner: hash_map::IntoIter<Principal, [u64; 2]>,
 }
 
-impl Reward {
-    pub fn from_pumps_and_dumps(pumps: u64, dumps: u64) -> Self {
+impl Iterator for RewardIter {
+    type Item = (Principal, Nat);
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (start, end) = self.inner.size_hint();
+        let extra = self.creator.as_ref().map(|_| 1).unwrap_or_default();
+
+        (start + extra, end.map(|e| e + extra))
+    }
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.inner.next();
+        let Some((better, bet)) = next else {
+            let creator = self.creator.take()?;
+            // there may be something remaining due to rounding errors
+            return Some((
+                creator,
+                self.liquidity_pool.clone() + self.remaining.clone(),
+            ));
+        };
+        // (bet_cnt_for_user / total_bets) * reward_pool
+        // basically the user's reward proprtional to the number of their correct bets
+        let reward = (bet[self.bet_idx] * self.reward_pool.clone()) / self.bet_cnt;
+        assert!(self.remaining >= reward);
+        self.remaining -= reward.clone();
+
+        Some((better, reward))
+    }
+}
+
+impl RewardIter {
+    pub fn new(
+        pumps: u64,
+        dumps: u64,
+        creator: Principal,
+        bets: HashMap<Principal, [u64; 2]>,
+    ) -> Self {
         let total = Nat::from(GDOLLR_TO_E8S) * (pumps + dumps);
 
         // 5% of total
         // divisible by 100, as GDOLLR_TO_E8S is also divisible by 100
-        let creator = (total.clone() * 5u32) / 100u32;
+        let creator_reward = (total.clone() * 5u32) / 100u32;
         // 5% of total
-        let liquidity_pool = creator.clone();
+        let liquidity_pool = creator_reward.clone();
 
-        let winner = total - creator.clone() - liquidity_pool.clone();
+        let remaining = total - creator_reward.clone() - liquidity_pool.clone();
+        let (bet_idx, bet_cnt) = if pumps > dumps {
+            (0, pumps)
+        } else {
+            (1, dumps)
+        };
 
         Self {
-            creator,
             liquidity_pool,
-            winner,
+            reward_pool: remaining.clone(),
+            remaining,
+            creator: Some(creator),
+            bet_idx,
+            bet_cnt,
+            inner: bets.into_iter(),
         }
     }
 }
@@ -92,34 +147,40 @@ impl GameState {
         &mut self,
         game_creator: Principal,
         token_root: Principal,
-        winner: Principal,
     ) -> Result<GameResult> {
-        let reward = Reward::from_pumps_and_dumps(self.pumps, self.dumps);
-
-        let mut storage = self.state.storage();
         let start_epoch_ms = Date::now().as_millis() + 10 * 10000;
-        storage
-            .transaction(move |mut txn| async move {
-                txn.put("pumps", 0u64).await?;
-                txn.put("dumps", 0u64).await?;
-                txn.put("start_epoch_ms", start_epoch_ms).await?;
+        self.state.storage().delete_all().await?;
 
-                Ok(())
-            })
-            .await?;
-
+        let rewards = RewardIter::new(
+            self.pumps,
+            self.dumps,
+            game_creator,
+            std::mem::take(&mut self.bets),
+        );
         self.pumps = 0;
         self.dumps = 0;
         self.start_epoch_ms = start_epoch_ms;
 
-        self.send_reward_to_user(winner, reward.winner).await?;
-        self.send_reward_to_user(game_creator, reward.creator)
-            .await?;
+        let lp_reward = rewards.liquidity_pool.clone();
+        let mut reward_futs = rewards
+            .map(|(winner, reward)| self.send_reward_to_user(winner, reward))
+            .collect::<FuturesUnordered<_>>();
+
+        while reward_futs.next().await.is_some() {}
+        std::mem::drop(reward_futs);
+
         self.backend
-            .add_dollr_to_liquidity_pool(game_creator, token_root, reward.liquidity_pool)
+            .add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward)
             .await?;
 
         Ok(GameResult::Winner)
+    }
+
+    fn tide_shift_check(with: u64, other: u64) -> bool {
+        let prev_delta = with.saturating_sub(other);
+        let new_delta = (with + 1).saturating_sub(other);
+
+        prev_delta < TIDE_SHIFT_DELTA && new_delta >= TIDE_SHIFT_DELTA
     }
 
     async fn increment_pumps(
@@ -128,12 +189,19 @@ impl GameState {
         token_root: Principal,
         sender: Principal,
     ) -> Result<GameResult> {
-        let prev_pumps = self.pumps;
+        let bets = self.bets.entry(sender).or_insert([0, 0]);
+        bets[0] += 1;
+
+        let tide_shifted = Self::tide_shift_check(self.pumps, self.dumps);
         self.pumps += 1;
-        if self.pumps > self.dumps && prev_pumps < self.dumps {
-            return self.round_end(game_creator, token_root, sender).await;
+        if tide_shifted {
+            return self.round_end(game_creator, token_root).await;
         }
 
+        self.state
+            .storage()
+            .put(&format!("bets-{sender}"), *bets)
+            .await?;
         self.state.storage().put("pumps", self.pumps).await?;
 
         Ok(GameResult::Looser)
@@ -145,12 +213,19 @@ impl GameState {
         token_root: Principal,
         sender: Principal,
     ) -> Result<GameResult> {
-        let prev_dumps = self.dumps;
+        let bets = self.bets.entry(sender).or_insert([0, 0]);
+        bets[1] += 1;
+
+        let tide_shifted = Self::tide_shift_check(self.dumps, self.pumps);
         self.dumps += 1;
-        if self.dumps > self.pumps && prev_dumps < self.pumps {
-            return self.round_end(game_creator, token_root, sender).await;
+        if tide_shifted {
+            return self.round_end(game_creator, token_root).await;
         }
 
+        self.state
+            .storage()
+            .put(&format!("bets-{sender}"), *bets)
+            .await?;
         self.state.storage().put("dumps", self.dumps).await?;
 
         Ok(GameResult::Looser)
@@ -197,18 +272,34 @@ struct InitState {
     start_epoch_ms: u64,
     pumps: u64,
     dumps: u64,
+    bets: HashMap<Principal, [u64; 2]>,
 }
 
 impl InitState {
     async fn initialize(storage: Storage) -> Self {
-        let start_epoch_ms = storage.get("start_time_ms").await.unwrap_or(0);
-        let pumps = storage.get("pumps").await.unwrap_or(0);
-        let dumps = storage.get("dumps").await.unwrap_or(0);
+        let start_epoch_ms = storage.get("start_time_ms").await.unwrap_or_default();
+        let pumps = storage.get("pumps").await.unwrap_or_default();
+        let dumps = storage.get("dumps").await.unwrap_or_default();
+
+        let bets_index = storage
+            .list_with_options(ListOptions::new().prefix("bets-"))
+            .await
+            .unwrap_or_default();
+
+        let mut bets = HashMap::new();
+        for entry in bets_index.entries() {
+            let raw_entry = entry.expect("invalid bets stored?!");
+            let (key, bet): (String, [u64; 2]) =
+                serde_wasm_bindgen::from_value(raw_entry).expect("invalid bets stored?!");
+            let better = Principal::from_text(key.strip_prefix("bets-").unwrap()).unwrap();
+            bets.insert(better, bet);
+        }
 
         Self {
             start_epoch_ms,
             pumps,
             dumps,
+            bets,
         }
     }
 }
@@ -236,6 +327,7 @@ impl DurableObject for GameState {
             start_epoch_ms: init_state.start_epoch_ms,
             pumps: init_state.pumps,
             dumps: init_state.dumps,
+            bets: init_state.bets,
             backend,
         }
     }
