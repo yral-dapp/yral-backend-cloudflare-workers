@@ -42,6 +42,12 @@ pub enum GameResult {
     Looser,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct BetsResponse {
+    pub pumps: u64,
+    pub dumps: u64,
+}
+
 struct RewardIter {
     pub liquidity_pool: Nat,
     reward_pool: Nat,
@@ -336,6 +342,23 @@ impl DurableObject for GameState {
         let env = self.env.clone();
         let router = Router::with_data(self);
         router
+            .get("/bets/:user_canister", |_req, ctx| {
+                let user_canister_raw = ctx.param("user_canister").unwrap();
+                let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
+                    return Response::error("Invalid user_canister", 400);
+                };
+    
+                let this = ctx.data;
+                let bets = this.bets
+                    .get(&user_canister)
+                    .copied()
+                    .unwrap_or_default();
+
+                Response::from_json(&BetsResponse {
+                    pumps: bets[0],
+                    dumps: bets[1],
+                })
+            })
             .post_async("/bet", |mut req, ctx| async move {
                 let game_req: GameObjReq = req.json().await?;
                 let this = ctx.data;

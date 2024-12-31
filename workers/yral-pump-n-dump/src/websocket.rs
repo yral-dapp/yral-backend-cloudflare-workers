@@ -22,8 +22,8 @@ pub struct IdentifyReq {
     pub sender: Principal,
     // root of the token
     pub token_root: Principal,
-    // principal of the token creator
-    pub token_creator: Principal,
+    // principal of the token creator's canister
+    pub game_canister: Principal,
     // signature verifying the user's consent
     pub signature: Signature,
 }
@@ -46,7 +46,7 @@ pub enum WsResp {
 fn verify_identify_req(req: &IdentifyReq) -> StdResult<(), String> {
     let msg = msg_builder::Message::default()
         .method_name("pump_or_dump_worker".into())
-        .args((req.token_creator, req.token_root))
+        .args((req.game_canister, req.token_root))
         .expect("Game request should serialize");
 
     let verify_res = req.signature.clone().verify_identity(req.sender, msg);
@@ -73,14 +73,9 @@ impl WsState {
         else {
             return Err(worker::Error::RustError("invalid canister".into()));
         };
-        let Some(game_canister) = ws_backend
-            .user_principal_to_user_canister(req.token_creator)
-            .await?
-        else {
-            return Err(worker::Error::RustError("invalid creator".into()));
-        };
+
         let token_valid = ws_backend
-            .validate_token(req.token_root, game_canister)
+            .validate_token(req.token_root, req.game_canister)
             .await?;
         if !token_valid {
             return Err(worker::Error::RustError("invalid token".into()));
@@ -88,14 +83,14 @@ impl WsState {
 
         let game_state = env.durable_object("GAME_STATE")?;
         let game_state_obj =
-            game_state.id_from_name(&format!("{}-{}", game_canister, req.token_root))?;
+            game_state.id_from_name(&format!("{}-{}", req.game_canister, req.token_root))?;
         let game_stub = game_state_obj.get_stub()?;
 
         Ok(Self {
             game_stub,
             sender_canister: user_canister,
             token_root: req.token_root,
-            game_canister,
+            game_canister: req.game_canister,
         })
     }
 
