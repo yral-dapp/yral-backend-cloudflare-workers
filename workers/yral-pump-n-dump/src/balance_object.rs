@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use candid::{Int, Nat, Principal};
 use num_bigint::BigInt;
 use serde::{Deserialize, Serialize};
@@ -32,7 +30,7 @@ pub struct UserDollrBalance {
     state: State,
     env: Env,
     // effective balance = on_chain_balance + off_chain_balance_delta
-    off_chain_balance_delta: Int,
+    off_chain_balance_delta: Option<Int>,
     user_canister: Option<Principal>,
     backend: BalanceBackend,
 }
@@ -52,27 +50,44 @@ impl UserDollrBalance {
         Ok(())
     }
 
-    fn effective_balance_inner(&self, on_chain_balance: Nat) -> Nat {
+    async fn off_chain_balance_delta(&mut self) -> &mut Int {
+        // if let Some syntax causes lifetime issues
+        if self.off_chain_balance_delta.is_some() {
+            return self.off_chain_balance_delta.as_mut().unwrap();
+        }
+
+        let off_chain_balance_delta = self
+            .state
+            .storage()
+            .get("off_chain_balance_delta")
+            .await
+            .unwrap_or_default();
+        self.off_chain_balance_delta = Some(off_chain_balance_delta);
+        self.off_chain_balance_delta.as_mut().unwrap()
+    }
+
+    async fn effective_balance_inner(&mut self, on_chain_balance: Nat) -> Nat {
         let mut effective_balance = on_chain_balance;
-        if self.off_chain_balance_delta < 0 {
-            effective_balance.0 -= (-self.off_chain_balance_delta.0.clone())
+        let off_chain_delta = self.off_chain_balance_delta().await.clone();
+        if off_chain_delta < 0 {
+            effective_balance.0 -= (-off_chain_delta.0.clone())
                 .to_biguint()
                 .unwrap();
         } else {
-            effective_balance.0 += self.off_chain_balance_delta.0.to_biguint().unwrap();
+            effective_balance.0 += off_chain_delta.0.to_biguint().unwrap();
         };
 
         effective_balance
     }
 
-    async fn effective_balance(&self, user_canister: Principal) -> Result<Nat> {
+    async fn effective_balance(&mut self, user_canister: Principal) -> Result<Nat> {
         let on_chain_balance = self.backend.gdollr_balance(user_canister).await?;
 
-        Ok(self.effective_balance_inner(on_chain_balance))
+        Ok(self.effective_balance_inner(on_chain_balance).await)
     }
 
     async fn decrement(&mut self) -> Result<()> {
-        self.off_chain_balance_delta -= GDOLLR_TO_E8S;
+        *self.off_chain_balance_delta().await -= GDOLLR_TO_E8S;
         self.state
             .storage()
             .put(
@@ -85,7 +100,7 @@ impl UserDollrBalance {
     }
 
     async fn add_reward(&mut self, amount: Nat) -> Result<()> {
-        self.off_chain_balance_delta.0 += BigInt::from(amount.0);
+        self.off_chain_balance_delta().await.0 += BigInt::from(amount.0);
         self.state
             .storage()
             .put(
@@ -98,8 +113,8 @@ impl UserDollrBalance {
     }
 
     async fn settle_balance(&mut self, user_canister: Principal) -> Result<()> {
-        let to_settle = self.off_chain_balance_delta.clone();
-        self.off_chain_balance_delta = 0.into();
+        let to_settle = self.off_chain_balance_delta().await.clone();
+        self.off_chain_balance_delta = Some(0.into());
         self.state
             .storage()
             .put("off_chain_balance_delta", Nat::from(0u32))
@@ -110,7 +125,7 @@ impl UserDollrBalance {
             .settle_gdollr_balance(user_canister, to_settle.clone())
             .await;
         if let Err(e) = res {
-            self.off_chain_balance_delta = to_settle.clone();
+            self.off_chain_balance_delta = Some(to_settle.clone());
             self.state
                 .storage()
                 .put("off_chain_balance_delta", to_settle)
@@ -129,7 +144,7 @@ impl UserDollrBalance {
             return Response::ok("done");
         }
 
-        let effective_bal = self.effective_balance_inner(on_chain_bal);
+        let effective_bal = self.effective_balance_inner(on_chain_bal).await;
         if amount > effective_bal {
             return Response::error("not enough balance", 400);
         }
@@ -141,43 +156,16 @@ impl UserDollrBalance {
     }
 }
 
-struct InitState {
-    off_chain_balance_delta: Int,
-}
-
-impl InitState {
-    async fn initialize(storage: Storage) -> Self {
-        let off_chain_balance_delta = storage
-            .get("off_chain_balance_delta")
-            .await
-            .unwrap_or_default();
-
-        Self {
-            off_chain_balance_delta,
-        }
-    }
-}
-
 #[durable_object]
 impl DurableObject for UserDollrBalance {
     fn new(state: State, env: Env) -> Self {
-        let storage = state.storage();
-        let init_state = Rc::new(RefCell::new(None::<InitState>));
-        let init_state_ref = init_state.clone();
-        state.wait_until(async move {
-            let init = InitState::initialize(storage).await;
-            *init_state_ref.borrow_mut() = Some(init);
-        });
-
-        let init_state = Rc::into_inner(init_state).unwrap().into_inner().unwrap();
-
         let backend = BalanceBackend::new(&env).unwrap();
 
         // TODO: do we need balance flushing?
         Self {
             state,
             env,
-            off_chain_balance_delta: init_state.off_chain_balance_delta,
+            off_chain_balance_delta: None,
             user_canister: None,
             backend,
         }
@@ -196,7 +184,7 @@ impl DurableObject for UserDollrBalance {
 
                 let this = ctx.data;
                 let bal = this.effective_balance(user_canister).await?;
-                Response::from_json(&bal)
+                Response::ok(bal.to_string())
             })
             .post_async("/decrement", |mut req, ctx| async move {
                 let this = ctx.data;
