@@ -1,6 +1,7 @@
 use candid::{CandidType, Principal};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use std::result::Result as StdResult;
 use worker::{Env, Method, Request, RequestInit, Result, Stub, WebSocket, WebSocketPair};
 use yral_identity::{msg_builder, Signature};
@@ -36,11 +37,23 @@ pub enum WsMessage {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct WsRequest {
+    pub request_id: Uuid,
+    pub msg: WsMessage,
+} 
+
+#[derive(Serialize, Deserialize)]
 pub enum WsResp {
     Identified,
     AuthenticationRequired,
     GameRes(GameResult),
     Error(String),
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WsResponse {
+    pub request_id: Uuid,
+    pub response: WsResp,
 }
 
 fn verify_identify_req(req: &IdentifyReq) -> StdResult<(), String> {
@@ -129,17 +142,21 @@ async fn websocket_loop(server: WebSocket, env: Env) {
             worker::WebsocketEvent::Message(m) => m,
         };
 
-        let Ok(msg) = msg_ev.json::<WsMessage>() else {
+        let Ok(req) = msg_ev.json::<WsRequest>() else {
             server
                 .close(Some(400), Some("received unexpected message"))
                 .expect("failed to close ws");
             return;
         };
 
-        match msg {
+        match req.msg {
             WsMessage::Bet(direction) => {
                 let Some(state) = state.as_ref() else {
-                    let body = serde_json::to_string(&WsResp::AuthenticationRequired).unwrap();
+                    let resp =  WsResponse {
+                        request_id: req.request_id,
+                        response: WsResp::AuthenticationRequired,
+                    };
+                    let body = serde_json::to_string(&resp).unwrap();
                     server.send_with_str(&body).expect("ws failed to send msg");
                     continue;
                 };
@@ -149,18 +166,22 @@ async fn websocket_loop(server: WebSocket, env: Env) {
                     Ok(r) => WsResp::GameRes(r),
                     Err(e) => WsResp::Error(e.to_string()),
                 };
-                let body = serde_json::to_string(&reply).unwrap();
+                let resp = WsResponse {
+                    request_id: req.request_id,
+                    response: reply,
+                };
+                let body = serde_json::to_string(&resp).unwrap();
                 server.send_with_str(&body).expect("ws failed to send msg");
             }
-            WsMessage::Identify(req) => {
-                if verify_identify_req(&req).is_err() {
+            WsMessage::Identify(id_req) => {
+                if verify_identify_req(&id_req).is_err() {
                     server
                         .close(Some(401), Some("unable to identify"))
                         .expect("failed to close ws");
                     return;
                 }
 
-                let res = match WsState::new(&env, req).await {
+                let res = match WsState::new(&env, id_req).await {
                     Ok(s) => s,
                     Err(e) => {
                         server
@@ -171,7 +192,12 @@ async fn websocket_loop(server: WebSocket, env: Env) {
                 };
 
                 state = Some(res);
-                let body = serde_json::to_string(&WsResp::Identified).unwrap();
+
+                let resp = WsResponse {
+                    request_id: req.request_id,
+                    response: WsResp::Identified, 
+                };
+                let body = serde_json::to_string(&resp).unwrap();
                 server.send_with_str(&body).expect("failed to send ws msg");
             }
         }
