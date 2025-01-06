@@ -1,4 +1,4 @@
-name = "sample-worker"
+name = "icpump_token_cleanup"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-01"
 
@@ -6,12 +6,9 @@ compatibility_date = "2024-01-01"
 command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
-ENVIRONMENT = "production"
+FIREBASE_PROJECT_ID = ""
+FIREBASE_API_KEY = ""
+FIREBASE_AUTH_DOMAIN = ""
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
-
-[[kv_namespaces]]
-binding = "assets"
-id = "766a2780aea54a9bbe4ed9ba2ce0b178"
-preview_id = "766a2780aea54a9bbe4ed9ba2ce0b178"
