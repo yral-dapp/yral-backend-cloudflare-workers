@@ -4414,7 +4414,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=7c143ce58d9dff8ee0a7e6e623cef51139c9c30f#7c143ce58d9dff8ee0a7e6e623cef51139c9c30f"
+source = "git+https://github.com/yral-dapp/yral-common?rev=25daf88c8b6427da263ffd3df97b5f7fcda83294#25daf88c8b6427da263ffd3df97b5f7fcda83294"
 dependencies = [
  "anyhow",
  "candid",

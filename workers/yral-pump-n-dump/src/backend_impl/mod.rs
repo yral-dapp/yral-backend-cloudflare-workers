@@ -1,10 +1,11 @@
 mod mock;
 mod real;
 
-use candid::{Int, Nat, Principal};
+use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
-use mock::{MockBalanceBackend, MockGameBackend, MockWsBackend};
+use mock::{MockGameBackend, MockUserState, MockWsBackend};
 use worker::{Env, Result};
+use yral_canisters_client::individual_user_template::PumpNDumpStateDiff;
 
 use crate::{admin_cans::AdminCans, utils::is_testing};
 
@@ -19,12 +20,18 @@ pub(crate) trait GameBackendImpl {
 }
 
 #[enum_dispatch]
-pub(crate) trait BalanceBackendImpl {
+pub(crate) trait UserStateBackendImpl {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat>;
 
-    async fn settle_gdollr_balance(&mut self, user_canister: Principal, delta: Int) -> Result<()>;
+    async fn reconcile_user_state(
+        &mut self,
+        user_canister: Principal,
+        completed_games: Vec<PumpNDumpStateDiff>,
+    ) -> Result<()>;
 
     async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<()>;
+
+    async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 }
 
 #[enum_dispatch]
@@ -57,16 +64,16 @@ impl GameBackend {
     }
 }
 
-#[enum_dispatch(BalanceBackendImpl)]
-pub enum BalanceBackend {
+#[enum_dispatch(UserStateBackendImpl)]
+pub enum StateBackend {
     Real(AdminCans),
-    Mock(MockBalanceBackend),
+    Mock(MockUserState),
 }
 
-impl BalanceBackend {
+impl StateBackend {
     pub fn new(env: &Env) -> Result<Self> {
         if is_testing() {
-            Ok(BalanceBackend::Mock(MockBalanceBackend::default()))
+            Ok(StateBackend::Mock(MockUserState::default()))
         } else {
             AdminCans::new(env).map(Self::Real)
         }

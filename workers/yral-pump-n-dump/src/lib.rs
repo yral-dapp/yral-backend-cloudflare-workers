@@ -1,16 +1,16 @@
 mod admin_cans;
 mod backend_impl;
-mod balance_object;
 mod consts;
 mod game_object;
+mod user_reconciler;
 mod utils;
 mod websocket;
 
 use backend_impl::{WsBackend, WsBackendImpl};
-use balance_object::ClaimGdollrReq;
 use candid::{Nat, Principal};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
+use user_reconciler::ClaimGdollrReq;
 use websocket::setup_websocket;
 use worker::*;
 use yral_identity::{msg_builder, Signature};
@@ -44,11 +44,10 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
     if let Err((msg, status)) = verify_claim_req(&req) {
         return Response::error(msg, status);
     }
-    let balance_obj = ctx.durable_object("USER_DOLLR_BALANCE")?;
+    let balance_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
     let backend = WsBackend::new(&ctx.env)?;
 
-    let Some(user_canister) = backend.user_principal_to_user_canister(req.sender).await?
-    else {
+    let Some(user_canister) = backend.user_principal_to_user_canister(req.sender).await? else {
         return Response::error("user not found", 404);
     };
     let user_bal_obj = balance_obj.id_from_name(&user_canister.to_text())?;
@@ -76,12 +75,29 @@ async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
         return Response::error("Invalid user_canister", 400);
     };
 
-    let balance_obj = ctx.durable_object("USER_DOLLR_BALANCE")?;
+    let balance_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
     let user_bal_obj = balance_obj.id_from_name(&user_canister.to_text())?;
     let bal_stub = user_bal_obj.get_stub()?;
 
     let res = bal_stub
         .fetch_with_str(&format!("http://fake_url.com/balance/{user_canister}"))
+        .await?;
+
+    Ok(res)
+}
+
+async fn user_game_count(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister_raw = ctx.param("user_canister").unwrap();
+    let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
+        return Response::error("Invalid user_canister", 400);
+    };
+
+    let state_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
+    let user_state_obj = state_obj.id_from_name(&user_canister.to_text())?;
+    let state_stub = user_state_obj.get_stub()?;
+
+    let res = state_stub
+        .fetch_with_str(&format!("http://fake_url.com/game_count/{user_canister}"))
         .await?;
 
     Ok(res)
@@ -98,8 +114,7 @@ async fn game_status(ctx: RouteContext<()>) -> Result<Response> {
     };
 
     let game_state = ctx.durable_object("GAME_STATE")?;
-    let game_state_obj =
-        game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
+    let game_state_obj = game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
     let game_stub = game_state_obj.get_stub()?;
 
     game_stub.fetch_with_str("http://fake_url.com/status").await
@@ -120,11 +135,12 @@ async fn user_bets_for_game(ctx: RouteContext<()>) -> Result<Response> {
     };
 
     let game_state = ctx.durable_object("GAME_STATE")?;
-    let game_state_obj =
-        game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
+    let game_state_obj = game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
     let game_stub = game_state_obj.get_stub()?;
 
-    game_stub.fetch_with_str(&format!("http://fake_url.com/bets/{user_canister}")).await
+    game_stub
+        .fetch_with_str(&format!("http://fake_url.com/bets/{user_canister}"))
+        .await
 }
 
 #[event(fetch)]
@@ -146,14 +162,16 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     router
         .post_async("/claim_gdollr", claim_gdollr)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
+        .get_async("/game_count/:user_canister", |_req, ctx| {
+            user_game_count(ctx)
+        })
         .get_async(
             "/bets/:game_canister/:token_root/:user_canister",
             |_req, ctx| user_bets_for_game(ctx),
         )
-        .get_async(
-            "/status/:game_canister/:token_root",
-            |_req, ctx| game_status(ctx),
-        )
+        .get_async("/status/:game_canister/:token_root", |_req, ctx| {
+            game_status(ctx)
+        })
         .run(req, env)
         .await
 }

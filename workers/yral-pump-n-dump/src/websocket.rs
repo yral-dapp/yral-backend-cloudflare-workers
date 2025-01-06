@@ -1,8 +1,8 @@
 use candid::{CandidType, Principal};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::result::Result as StdResult;
+use uuid::Uuid;
 use worker::{Env, Method, Request, RequestInit, Result, Stub, WebSocket, WebSocketPair};
 use yral_identity::{msg_builder, Signature};
 
@@ -40,7 +40,7 @@ pub enum WsMessage {
 pub struct WsRequest {
     pub request_id: Uuid,
     pub msg: WsMessage,
-} 
+}
 
 #[derive(Serialize, Deserialize)]
 pub enum WsResp {
@@ -152,7 +152,7 @@ async fn websocket_loop(server: WebSocket, env: Env) {
         match req.msg {
             WsMessage::Bet(direction) => {
                 let Some(state) = state.as_ref() else {
-                    let resp =  WsResponse {
+                    let resp = WsResponse {
                         request_id: req.request_id,
                         response: WsResp::AuthenticationRequired,
                     };
@@ -195,7 +195,7 @@ async fn websocket_loop(server: WebSocket, env: Env) {
 
                 let resp = WsResponse {
                     request_id: req.request_id,
-                    response: WsResp::Identified, 
+                    response: WsResp::Identified,
                 };
                 let body = serde_json::to_string(&resp).unwrap();
                 server.send_with_str(&body).expect("failed to send ws msg");

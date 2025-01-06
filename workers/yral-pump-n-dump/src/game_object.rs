@@ -7,8 +7,8 @@ use worker::*;
 
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
-    balance_object::{AddRewardReq, DecrementReq},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
+    user_reconciler::{AddRewardReq, CompletedGameInfo, DecrementReq, StateDiff},
     websocket::GameDirection,
 };
 
@@ -32,7 +32,7 @@ pub struct GameObjReq {
     pub token_root: Principal,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum GameResult {
     Winner,
     Looser,
@@ -46,16 +46,17 @@ pub struct BetsResponse {
 
 struct RewardIter {
     pub liquidity_pool: Nat,
+    token_root: Principal,
     reward_pool: Nat,
     remaining: Nat,
     creator: Option<Principal>,
-    bet_idx: usize,
+    outcome: GameDirection,
     bet_cnt: u64,
     inner: hash_map::IntoIter<Principal, [u64; 2]>,
 }
 
 impl Iterator for RewardIter {
-    type Item = (Principal, Nat);
+    type Item = (Principal, StateDiff);
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (start, end) = self.inner.size_hint();
@@ -71,16 +72,30 @@ impl Iterator for RewardIter {
             // there may be something remaining due to rounding errors
             return Some((
                 creator,
-                self.liquidity_pool.clone() + self.remaining.clone(),
+                StateDiff::CreatorReward(self.liquidity_pool.clone() + self.remaining.clone()),
             ));
         };
         // (bet_cnt_for_user / total_bets) * reward_pool
         // basically the user's reward proprtional to the number of their correct bets
-        let reward = (bet[self.bet_idx] * self.reward_pool.clone()) / self.bet_cnt;
+        let bet_idx = if matches!(self.outcome, GameDirection::Pump) {
+            0
+        } else {
+            1
+        };
+        let reward = (bet[bet_idx] * self.reward_pool.clone()) / self.bet_cnt;
         assert!(self.remaining >= reward);
         self.remaining -= reward.clone();
 
-        Some((better, reward))
+        Some((
+            better,
+            StateDiff::CompletedGame(CompletedGameInfo {
+                pumps: bet[0],
+                dumps: bet[1],
+                reward,
+                token_root: self.token_root,
+                outcome: self.outcome,
+            }),
+        ))
     }
 }
 
@@ -89,6 +104,7 @@ impl RewardIter {
         pumps: u64,
         dumps: u64,
         creator: Principal,
+        token_root: Principal,
         bets: HashMap<Principal, [u64; 2]>,
     ) -> Self {
         let total = Nat::from(GDOLLR_TO_E8S) * (pumps + dumps);
@@ -100,10 +116,10 @@ impl RewardIter {
         let liquidity_pool = creator_reward.clone();
 
         let remaining = total - creator_reward.clone() - liquidity_pool.clone();
-        let (bet_idx, bet_cnt) = if pumps > dumps {
-            (0, pumps)
+        let (outcome, bet_cnt) = if pumps > dumps {
+            (GameDirection::Pump, pumps)
         } else {
-            (1, dumps)
+            (GameDirection::Dump, dumps)
         };
 
         Self {
@@ -111,7 +127,8 @@ impl RewardIter {
             reward_pool: remaining.clone(),
             remaining,
             creator: Some(creator),
-            bet_idx,
+            token_root,
+            outcome,
             bet_cnt,
             inner: bets.into_iter(),
         }
@@ -124,12 +141,7 @@ impl GameState {
             return self.pumps.as_mut().unwrap();
         }
 
-        let pumps = self
-            .state
-            .storage()
-            .get("pumps")
-            .await
-            .unwrap_or_default();
+        let pumps = self.state.storage().get("pumps").await.unwrap_or_default();
         self.pumps = Some(pumps);
         self.pumps.as_mut().unwrap()
     }
@@ -139,12 +151,7 @@ impl GameState {
             return self.dumps.as_mut().unwrap();
         }
 
-        let dumps = self
-            .state
-            .storage()
-            .get("dumps")
-            .await
-            .unwrap_or_default();
+        let dumps = self.state.storage().get("dumps").await.unwrap_or_default();
         self.dumps = Some(dumps);
         self.dumps.as_mut().unwrap()
     }
@@ -189,16 +196,16 @@ impl GameState {
         self.bets.as_mut().unwrap()
     }
 
-    fn user_balance_stub(&self, user: Principal) -> Result<Stub> {
-        let user_dollr_balance = self.env.durable_object("USER_DOLLR_BALANCE")?;
-        let user_bal_obj = user_dollr_balance.id_from_name(&user.to_string())?;
+    fn user_state_stub(&self, user: Principal) -> Result<Stub> {
+        let user_state = self.env.durable_object("USER_EPHEMERAL_STATE")?;
+        let user_state_obj = user_state.id_from_name(&user.to_string())?;
 
-        user_bal_obj.get_stub()
+        user_state_obj.get_stub()
     }
 
-    async fn send_reward_to_user(&self, user: Principal, amount: Nat) -> Result<()> {
+    async fn send_reward_to_user(&self, user: Principal, state_diff: StateDiff) -> Result<()> {
         let body = AddRewardReq {
-            amount,
+            state_diff,
             user_canister: user,
         };
         let mut req_init = RequestInit::new();
@@ -209,8 +216,8 @@ impl GameState {
                 .with_body(Some(serde_wasm_bindgen::to_value(&body)?)),
         )?;
 
-        let user_bal_stub = self.user_balance_stub(user)?;
-        user_bal_stub.fetch_with_request(req).await?;
+        let user_state = self.user_state_stub(user)?;
+        user_state.fetch_with_request(req).await?;
 
         Ok(())
     }
@@ -222,19 +229,22 @@ impl GameState {
     ) -> Result<GameResult> {
         let start_epoch_ms = Date::now().as_millis() + 10 * 10000;
 
-
         let rewards = RewardIter::new(
             *self.pumps().await,
             *self.dumps().await,
             game_creator,
+            token_root,
             std::mem::take(self.bets().await),
         );
-        self.state.storage().transaction(move |mut txn| async move {
-            txn.delete_all().await?;
-            txn.put("start_epoch_ms", start_epoch_ms).await?;
+        self.state
+            .storage()
+            .transaction(move |mut txn| async move {
+                txn.delete_all().await?;
+                txn.put("start_epoch_ms", start_epoch_ms).await?;
 
-            Ok(())
-        }).await?;
+                Ok(())
+            })
+            .await?;
         self.pumps = Some(0);
         self.dumps = Some(0);
         self.start_epoch_ms = Some(start_epoch_ms);
@@ -275,7 +285,7 @@ impl GameState {
         let pumps = self.pumps().await;
         let tide_shifted = Self::tide_shift_check(*pumps, dumps);
         *pumps += 1;
-    
+
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
         }
@@ -322,10 +332,11 @@ impl GameState {
             return Response::error("game has not started", 503);
         }
 
-        let user_bal_stub = self.user_balance_stub(game_req.sender)?;
+        let user_state = self.user_state_stub(game_req.sender)?;
         let mut req_init = RequestInit::new();
         let body = DecrementReq {
             user_canister: game_req.sender,
+            token_root: game_req.token_root,
         };
         let req = Request::new_with_init(
             "http://fake_url.com/decrement",
@@ -334,7 +345,7 @@ impl GameState {
                 .with_body(Some(serde_wasm_bindgen::to_value(&body)?)),
         )?;
 
-        let res = user_bal_stub.fetch_with_request(req).await?;
+        let res = user_state.fetch_with_request(req).await?;
         if res.status_code() != 200 {
             return Ok(res);
         }
@@ -379,9 +390,10 @@ impl DurableObject for GameState {
                 let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
                     return Response::error("Invalid user_canister", 400);
                 };
-    
+
                 let this = ctx.data;
-                let bets = this.bets()
+                let bets = this
+                    .bets()
                     .await
                     .get(&user_canister)
                     .copied()

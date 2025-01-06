@@ -1,12 +1,12 @@
 use std::error::Error;
 
-use candid::{Int, Nat, Principal};
+use candid::{Nat, Principal};
 use worker::Result;
-use yral_canisters_client::individual_user_template::Result1;
+use yral_canisters_client::individual_user_template::{PumpNDumpStateDiff, Result1};
 
 use crate::admin_cans::AdminCans;
 
-use super::{BalanceBackendImpl, GameBackendImpl, WsBackendImpl};
+use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
 
 fn to_worker_error(e: impl Error) -> worker::Error {
     worker::Error::RustError(e.to_string())
@@ -36,16 +36,20 @@ impl GameBackendImpl for AdminCans {
     }
 }
 
-impl BalanceBackendImpl for AdminCans {
+impl UserStateBackendImpl for AdminCans {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat> {
         let user = self.individual_user(user_canister);
         user.gdollr_balance().await.map_err(to_worker_error)
     }
 
-    async fn settle_gdollr_balance(&mut self, user_canister: Principal, delta: Int) -> Result<()> {
+    async fn reconcile_user_state(
+        &mut self,
+        user_canister: Principal,
+        completed_games: Vec<PumpNDumpStateDiff>,
+    ) -> Result<()> {
         let user = self.individual_user(user_canister);
         let res = user
-            .settle_gdollr_balance(delta)
+            .reconcile_user_state(completed_games)
             .await
             .map_err(to_worker_error)?;
 
@@ -57,6 +61,12 @@ impl BalanceBackendImpl for AdminCans {
         let res = user.redeem_gdollr(amount).await.map_err(to_worker_error)?;
 
         from_can_res(res)
+    }
+
+    async fn game_count(&self, user_canister: Principal) -> Result<u64> {
+        let user = self.individual_user(user_canister);
+
+        user.played_game_count().await.map_err(to_worker_error)
     }
 }
 
