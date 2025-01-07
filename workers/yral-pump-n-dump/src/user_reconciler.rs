@@ -11,7 +11,7 @@ use yral_canisters_client::individual_user_template::{
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_STATE_RECONCILE_TIME_MS},
-    websocket::GameDirection,
+    utils::GameDirection,
 };
 
 #[derive(Serialize, Deserialize, Clone)]

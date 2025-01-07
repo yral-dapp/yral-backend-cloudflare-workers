@@ -4,14 +4,12 @@ mod consts;
 mod game_object;
 mod user_reconciler;
 mod utils;
-mod websocket;
 
 use backend_impl::{WsBackend, WsBackendImpl};
 use candid::{Nat, Principal};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::ClaimGdollrReq;
-use websocket::setup_websocket;
 use worker::*;
 use yral_identity::{msg_builder, Signature};
 
@@ -23,6 +21,12 @@ pub struct ClaimReq {
     pub amount: Nat,
     // signature asserting the user's consent
     pub signature: Signature,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct GameWsQuery {
+    sender: String,
+    signature: String,
 }
 
 fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
@@ -143,19 +147,72 @@ async fn user_bets_for_game(ctx: RouteContext<()>) -> Result<Response> {
         .await
 }
 
+fn verify_identify_req(
+    game_canister: Principal,
+    token_root: Principal,
+    sender: Principal,
+    signature: Signature,
+) -> StdResult<(), String> {
+    let msg = msg_builder::Message::default()
+        .method_name("pump_or_dump_worker".into())
+        .args((game_canister, token_root))
+        .expect("Game request should serialize");
+
+    let verify_res = signature.clone().verify_identity(sender, msg);
+    if verify_res.is_err() {
+        return Err("invalid signature".into());
+    }
+
+    Ok(())
+}
+
+async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let game_canister_raw = ctx.param("game_canister").unwrap();
+    let Ok(game_canister) = Principal::from_text(game_canister_raw) else {
+        return Response::error("invalid game_canister", 400);
+    };
+    let token_root_raw = ctx.param("token_root").unwrap();
+    let Ok(token_root) = Principal::from_text(token_root_raw) else {
+        return Response::error("invalid token_root", 400);
+    };
+
+    let raw_query: GameWsQuery = req.query()?;
+    let Ok(sender) = Principal::from_text(raw_query.sender) else {
+        return Response::error("invalid sender", 400);
+    };
+    let Ok(signature) = serde_json::from_str::<Signature>(&raw_query.signature) else {
+        return Response::error("invalid signature", 400);
+    };
+
+    if let Err(e) = verify_identify_req(game_canister, token_root, sender, signature) {
+        return Response::error(e, 403);
+    }
+
+    let ws_backend = WsBackend::new(&ctx.env)?;
+
+    let Some(user_canister) = ws_backend.user_principal_to_user_canister(sender).await? else {
+        return Response::error("invalid user_canister", 400);
+    };
+
+    let token_valid = ws_backend.validate_token(token_root, game_canister).await?;
+    if !token_valid {
+        return Response::error("invalid token", 400);
+    }
+
+    let game_state = ctx.env.durable_object("GAME_STATE")?;
+    let game_state_obj = game_state.id_from_name(&format!("{}-{}", game_canister, token_root))?;
+    let game_stub = game_state_obj.get_stub()?;
+
+    let mut new_req = req.clone_mut()?;
+    let new_path = new_req.path_mut()?;
+    *new_path = format!("/ws/{game_canister}/{token_root}/{user_canister}");
+
+    game_stub.fetch_with_request(new_req).await
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
-
-    let upgrade_header = req.headers().get("Upgrade")?;
-    if upgrade_header.as_deref() == Some("websocket") {
-        let client = setup_websocket(env)?;
-
-        return Ok(Response::builder()
-            .with_status(101)
-            .with_websocket(client)
-            .empty());
-    }
 
     let router = Router::new();
 
@@ -171,6 +228,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .get_async("/status/:game_canister/:token_root", |_req, ctx| {
             game_status(ctx)
+        })
+        .get_async("/ws/:game_canister/:token_root", |req, ctx| {
+            estabilish_game_ws(req, ctx)
         })
         .run(req, env)
         .await

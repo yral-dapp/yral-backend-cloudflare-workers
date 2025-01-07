@@ -1,15 +1,18 @@
+mod ws;
+
 use std::collections::{hash_map, HashMap};
 
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 use worker::*;
+use ws::GameResult;
 
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, CompletedGameInfo, DecrementReq, StateDiff},
-    websocket::GameDirection,
+    utils::GameDirection,
 };
 
 #[durable_object]
@@ -24,18 +27,11 @@ pub struct GameState {
     backend: GameBackend,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct GameObjReq {
+struct GameObjReq {
     pub sender: Principal,
     pub direction: GameDirection,
     pub creator: Principal,
     pub token_root: Principal,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub enum GameResult {
-    Winner,
-    Looser,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -222,11 +218,7 @@ impl GameState {
         Ok(())
     }
 
-    async fn round_end(
-        &mut self,
-        game_creator: Principal,
-        token_root: Principal,
-    ) -> Result<GameResult> {
+    async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<()> {
         let start_epoch_ms = Date::now().as_millis() + 10 * 10000;
 
         let rewards = RewardIter::new(
@@ -249,6 +241,11 @@ impl GameState {
         self.dumps = Some(0);
         self.start_epoch_ms = Some(start_epoch_ms);
 
+        let game_res = GameResult {
+            direction: rewards.outcome,
+            reward_pool: rewards.reward_pool.clone(),
+        };
+
         let lp_reward = rewards.liquidity_pool.clone();
         let mut reward_futs = rewards
             .map(|(winner, reward)| self.send_reward_to_user(winner, reward))
@@ -261,7 +258,9 @@ impl GameState {
             .add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward)
             .await?;
 
-        Ok(GameResult::Winner)
+        self.broadcast_game_result(game_res)?;
+
+        Ok(())
     }
 
     fn tide_shift_check(with: u64, other: u64) -> bool {
@@ -276,7 +275,7 @@ impl GameState {
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
-    ) -> Result<GameResult> {
+    ) -> Result<()> {
         let bets = self.bets().await.entry(sender).or_insert([0, 0]);
         bets[0] += 1;
         let bets = *bets;
@@ -296,7 +295,7 @@ impl GameState {
             .await?;
         self.state.storage().put("pumps", self.pumps).await?;
 
-        Ok(GameResult::Looser)
+        Ok(())
     }
 
     async fn increment_dumps(
@@ -304,7 +303,7 @@ impl GameState {
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
-    ) -> Result<GameResult> {
+    ) -> Result<()> {
         let bets = self.bets().await.entry(sender).or_insert([0, 0]);
         bets[1] += 1;
         let bets = *bets;
@@ -324,12 +323,12 @@ impl GameState {
             .await?;
         self.state.storage().put("dumps", self.dumps).await?;
 
-        Ok(GameResult::Looser)
+        Ok(())
     }
 
-    async fn game_request(&mut self, game_req: GameObjReq) -> Result<Response> {
+    async fn game_request(&mut self, game_req: GameObjReq) -> Result<()> {
         if *self.start_epoch_ms().await > Date::now().as_millis() {
-            return Response::error("game has not started", 503);
+            return Err(worker::Error::RustError("game not started".into()));
         }
 
         let user_state = self.user_state_stub(game_req.sender)?;
@@ -347,10 +346,12 @@ impl GameState {
 
         let res = user_state.fetch_with_request(req).await?;
         if res.status_code() != 200 {
-            return Ok(res);
+            return Err(worker::Error::RustError(
+                "failed to handle decrement".into(),
+            ));
         }
 
-        let game_res = match game_req.direction {
+        match game_req.direction {
             GameDirection::Pump => {
                 self.increment_pumps(game_req.creator, game_req.token_root, game_req.sender)
                     .await?
@@ -361,7 +362,7 @@ impl GameState {
             }
         };
 
-        Response::from_json(&game_res)
+        Ok(())
     }
 }
 
@@ -404,12 +405,6 @@ impl DurableObject for GameState {
                     dumps: bets[1],
                 })
             })
-            .post_async("/bet", |mut req, ctx| async move {
-                let game_req: GameObjReq = req.json().await?;
-                let this = ctx.data;
-
-                this.game_request(game_req).await
-            })
             .get_async("/status", |_req, ctx| async move {
                 let this = ctx.data;
                 if *this.start_epoch_ms().await > Date::now().as_millis() {
@@ -418,7 +413,53 @@ impl DurableObject for GameState {
                     Response::ok("ready")
                 }
             })
+            .get_async(
+                "/ws/:game_canister/:token_root/:user_canister",
+                |req, ctx| async move {
+                    let upgrade = req.headers().get("Upgrade")?;
+                    if upgrade.as_deref() != Some("websocket") {
+                        return Response::error("expected websocket", 400);
+                    }
+                    let game_canister =
+                        Principal::from_text(ctx.param("game_canister").unwrap()).unwrap();
+                    let token_root =
+                        Principal::from_text(ctx.param("token_root").unwrap()).unwrap();
+                    let user_canister =
+                        Principal::from_text(ctx.param("user_canister").unwrap()).unwrap();
+
+                    let pair = WebSocketPair::new()?;
+                    ctx.data
+                        .handle_ws(pair.server, game_canister, token_root, user_canister)?;
+
+                    Response::from_websocket(pair.client)
+                },
+            )
             .run(req, env)
             .await
+    }
+
+    async fn websocket_message(
+        &mut self,
+        ws: WebSocket,
+        message: WebSocketIncomingMessage,
+    ) -> Result<()> {
+        let msg = self.handle_ws_message(&ws, message).await?;
+        ws.send(&msg)?;
+
+        Ok(())
+    }
+
+    async fn websocket_error(&mut self, ws: WebSocket, error: worker::Error) -> Result<()> {
+        ws.close(Some(500), Some(error.to_string()))
+    }
+
+    async fn websocket_close(
+        &mut self,
+        ws: WebSocket,
+        code: usize,
+        reason: String,
+        _was_clean: bool,
+    ) -> Result<()> {
+        ws.close(Some(code as u16), Some(reason))
     }
 }
