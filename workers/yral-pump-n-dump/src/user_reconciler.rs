@@ -10,7 +10,7 @@ use yral_canisters_client::individual_user_template::{
 
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
-    consts::GDOLLR_TO_E8S,
+    consts::{GDOLLR_TO_E8S, USER_STATE_RECONCILE_TIME_MS},
     websocket::GameDirection,
 };
 
@@ -133,6 +133,38 @@ impl UserEphemeralState {
         Ok(())
     }
 
+    async fn try_get_user_canister(&mut self) -> Option<Principal> {
+        if let Some(user_canister) = self.user_canister {
+            return Some(user_canister);
+        }
+
+        let user_canister = self.state.storage().get("user_canister").await.ok()?;
+        self.user_canister = Some(user_canister);
+
+        Some(user_canister)
+    }
+
+    async fn queue_settle_balance_inner(&self, new_time: Option<i64>) -> Result<()> {
+        let new_time = new_time
+            .unwrap_or_else(|| Date::now().as_millis() as i64 + USER_STATE_RECONCILE_TIME_MS);
+        self.state.storage().set_alarm(new_time).await?;
+
+        Ok(())
+    }
+
+    async fn queue_settle_balance(&self) -> Result<()> {
+        let Some(alarm) = self.state.storage().get_alarm().await? else {
+            return self.queue_settle_balance_inner(None).await;
+        };
+        let new_time = Date::now().as_millis() as i64 + USER_STATE_RECONCILE_TIME_MS;
+        if alarm <= new_time {
+            return Ok(());
+        }
+        self.queue_settle_balance_inner(Some(new_time)).await?;
+
+        Ok(())
+    }
+
     async fn off_chain_balance_delta(&mut self) -> &mut Int {
         // if let Some syntax causes lifetime issues
         if self.off_chain_balance_delta.is_some() {
@@ -240,7 +272,7 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn add_state_diff(&mut self, state_diff: StateDiff) -> Result<()> {
+    async fn add_state_diff_inner(&mut self, state_diff: StateDiff) -> Result<()> {
         self.off_chain_balance_delta().await.0 += BigInt::from(state_diff.reward());
         self.state
             .storage()
@@ -266,6 +298,13 @@ impl UserEphemeralState {
             .storage()
             .put(&format!("state-diff-{}", next_idx), state_diff)
             .await?;
+
+        Ok(())
+    }
+
+    async fn add_state_diff(&mut self, state_diff: StateDiff) -> Result<()> {
+        self.add_state_diff_inner(state_diff).await?;
+        self.queue_settle_balance().await?;
 
         Ok(())
     }
@@ -347,7 +386,6 @@ impl DurableObject for UserEphemeralState {
     fn new(state: State, env: Env) -> Self {
         let backend = StateBackend::new(&env).unwrap();
 
-        // TODO: do we need balance flushing?
         Self {
             state,
             env,
@@ -371,6 +409,7 @@ impl DurableObject for UserEphemeralState {
                 };
 
                 let this = ctx.data;
+                this.set_user_canister(user_canister).await?;
                 let bal = this.effective_balance(user_canister).await?;
                 Response::ok(bal.to_string())
             })
@@ -412,11 +451,28 @@ impl DurableObject for UserEphemeralState {
                 };
 
                 let this = ctx.data;
+                this.set_user_canister(user_canister).await?;
                 let cnt = this.effective_game_count(user_canister).await?;
 
                 Response::ok(cnt.to_string())
             })
             .run(req, env)
             .await
+    }
+
+    async fn alarm(&mut self) -> Result<Response> {
+        let Some(user_canister) = self.try_get_user_canister().await else {
+            console_warn!("alarm set without user_canister set?!");
+            return Response::ok("not ready");
+        };
+
+        if self.off_chain_balance_delta().await == &0u32 {
+            console_warn!("alarm set without any updates?!");
+            return Response::ok("not required");
+        }
+
+        self.settle_balance(user_canister).await?;
+
+        Response::ok("done")
     }
 }
