@@ -1,42 +1,12 @@
-use candid::{Nat, Principal};
+use candid::Principal;
+use pump_n_dump_common::ws::{GameResult, WsMessage, WsRequest, WsResp, WsResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use worker::{Result, WebSocket, WebSocketIncomingMessage};
 
-use crate::{game_object::GameObjReq, utils::GameDirection};
+use crate::game_object::GameObjReq;
 
 use super::GameState;
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize)]
-pub enum WsMessage {
-    Bet(GameDirection),
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct WsRequest {
-    pub request_id: Uuid,
-    pub msg: WsMessage,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct GameResult {
-    pub direction: GameDirection,
-    pub reward_pool: Nat,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum WsResp {
-    Ok,
-    Error(String),
-    GameResult(GameResult),
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct WsResponse {
-    pub request_id: Uuid,
-    pub response: WsResp,
-}
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 struct WsState {
@@ -64,7 +34,7 @@ impl GameState {
     }
 
     pub fn broadcast_game_result(&self, game_result: GameResult) -> Result<()> {
-        let event = WsResp::GameResult(game_result);
+        let event = WsResp::GameResultEvent(game_result);
         let resp = WsResponse {
             request_id: Uuid::max(),
             response: event,

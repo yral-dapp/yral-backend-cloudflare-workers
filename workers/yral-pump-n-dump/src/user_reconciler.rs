@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use candid::{Int, Nat, Principal};
 use num_bigint::BigInt;
+use pump_n_dump_common::GameDirection;
 use serde::{Deserialize, Serialize};
 use worker::*;
 use yral_canisters_client::individual_user_template::{
@@ -11,7 +12,6 @@ use yral_canisters_client::individual_user_template::{
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_STATE_RECONCILE_TIME_MS},
-    utils::GameDirection,
 };
 
 #[derive(Serialize, Deserialize, Clone)]

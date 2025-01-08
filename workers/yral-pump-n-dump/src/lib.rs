@@ -6,22 +6,16 @@ mod user_reconciler;
 mod utils;
 
 use backend_impl::{WsBackend, WsBackendImpl};
-use candid::{Nat, Principal};
+use candid::Principal;
+use pump_n_dump_common::{
+    rest::{claim_msg, ClaimReq},
+    ws::identify_message,
+};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::ClaimGdollrReq;
 use worker::*;
-use yral_identity::{msg_builder, Signature};
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ClaimReq {
-    // user to send DOLLR to
-    pub sender: Principal,
-    // amount of DOLLR
-    pub amount: Nat,
-    // signature asserting the user's consent
-    pub signature: Signature,
-}
+use yral_identity::Signature;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GameWsQuery {
@@ -30,10 +24,7 @@ pub struct GameWsQuery {
 }
 
 fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
-    let msg = msg_builder::Message::default()
-        .method_name("pump_or_dump_worker_claim".into())
-        .args((req.amount.clone(),))
-        .expect("Claim request should serialize");
+    let msg = claim_msg(req.amount.clone());
 
     let verify_res = req.signature.clone().verify_identity(req.sender, msg);
     if verify_res.is_err() {
@@ -153,10 +144,7 @@ fn verify_identify_req(
     sender: Principal,
     signature: Signature,
 ) -> StdResult<(), String> {
-    let msg = msg_builder::Message::default()
-        .method_name("pump_or_dump_worker".into())
-        .args((game_canister, token_root))
-        .expect("Game request should serialize");
+    let msg = identify_message(game_canister, token_root);
 
     let verify_res = signature.clone().verify_identity(sender, msg);
     if verify_res.is_err() {

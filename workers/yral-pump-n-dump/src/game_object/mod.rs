@@ -2,18 +2,15 @@ mod ws;
 
 use std::collections::{hash_map, HashMap};
 
-use candid::{Nat, Principal};
-use futures::{stream::FuturesUnordered, StreamExt};
-use serde::{Deserialize, Serialize};
-use worker::*;
-use ws::GameResult;
-
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, CompletedGameInfo, DecrementReq, StateDiff},
-    utils::GameDirection,
 };
+use candid::{Nat, Principal};
+use futures::{stream::FuturesUnordered, StreamExt};
+use pump_n_dump_common::{rest::UserBetsResponse, ws::GameResult, GameDirection};
+use worker::*;
 
 #[durable_object]
 pub struct GameState {
@@ -32,12 +29,6 @@ struct GameObjReq {
     pub direction: GameDirection,
     pub creator: Principal,
     pub token_root: Principal,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct BetsResponse {
-    pub pumps: u64,
-    pub dumps: u64,
 }
 
 struct RewardIter {
@@ -400,7 +391,7 @@ impl DurableObject for GameState {
                     .copied()
                     .unwrap_or_default();
 
-                Response::from_json(&BetsResponse {
+                Response::from_json(&UserBetsResponse {
                     pumps: bets[0],
                     dumps: bets[1],
                 })

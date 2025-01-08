@@ -4414,7 +4414,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=25daf88c8b6427da263ffd3df97b5f7fcda83294#25daf88c8b6427da263ffd3df97b5f7fcda83294"
+source = "git+https://github.com/yral-dapp/yral-common?rev=5aa7eb4bfef6a3132381912a9cabf883019027d5#5aa7eb4bfef6a3132381912a9cabf883019027d5"
 dependencies = [
  "anyhow",
  "candid",
@@ -4444,6 +4444,7 @@ version = "0.1.0"
 source = "git+https://github.com/yral-dapp/yral-identity?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701#156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701"
 dependencies = [
  "candid",
+ "ic-agent 0.38.2",
  "ic-types",
  "ic-validator-ingress-message",
  "serde",
@@ -4517,6 +4518,19 @@ dependencies = [
  "yral-canisters-client",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
  "yral-metadata-client",
+ "yral-pump-n-dump-common",
+]
+
+[[package]]
+name = "yral-pump-n-dump-common"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common?rev=5aa7eb4bfef6a3132381912a9cabf883019027d5#5aa7eb4bfef6a3132381912a9cabf883019027d5"
+dependencies = [
+ "candid",
+ "serde",
+ "serde_json",
+ "uuid",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701)",
 ]
 
 [[package]]
