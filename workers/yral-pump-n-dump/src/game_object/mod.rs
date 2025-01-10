@@ -235,6 +235,7 @@ impl GameState {
         let game_res = GameResult {
             direction: rewards.outcome,
             reward_pool: rewards.reward_pool.clone(),
+            bet_count: rewards.bet_cnt,
         };
 
         let lp_reward = rewards.liquidity_pool.clone();
@@ -275,6 +276,7 @@ impl GameState {
         let pumps = self.pumps().await;
         let tide_shifted = Self::tide_shift_check(*pumps, dumps);
         *pumps += 1;
+        let pumps = *pumps;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
@@ -284,7 +286,9 @@ impl GameState {
             .storage()
             .put(&format!("bets-{sender}"), bets)
             .await?;
-        self.state.storage().put("pumps", self.pumps).await?;
+        self.state.storage().put("pumps", pumps).await?;
+
+        self.broadcast_pool_update(pumps + dumps)?;
 
         Ok(())
     }
@@ -303,6 +307,7 @@ impl GameState {
         let dumps = self.dumps().await;
         let tide_shifted = Self::tide_shift_check(*dumps, pumps);
         *dumps += 1;
+        let dumps = *dumps;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
@@ -312,7 +317,9 @@ impl GameState {
             .storage()
             .put(&format!("bets-{sender}"), bets)
             .await?;
-        self.state.storage().put("dumps", self.dumps).await?;
+        self.state.storage().put("dumps", dumps).await?;
+
+        self.broadcast_pool_update(dumps + pumps)?;
 
         Ok(())
     }
@@ -425,6 +432,11 @@ impl DurableObject for GameState {
                     Response::from_websocket(pair.client)
                 },
             )
+            .get_async("/game_pool", |_req, ctx| async move {
+                let this = ctx.data;
+                let total = *this.dumps().await + *this.pumps().await;
+                Response::ok(total.to_string())
+            })
             .run(req, env)
             .await
     }

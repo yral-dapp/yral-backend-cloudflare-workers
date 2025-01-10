@@ -35,9 +35,18 @@ impl GameState {
 
     pub fn broadcast_game_result(&self, game_result: GameResult) -> Result<()> {
         let event = WsResp::GameResultEvent(game_result);
+        self.broadcast_event(event)
+    }
+
+    pub fn broadcast_pool_update(&self, new_pool: u64) -> Result<()> {
+        let event = WsResp::WinningPoolEvent(new_pool);
+        self.broadcast_event(event)
+    }
+
+    fn broadcast_event(&self, resp: WsResp) -> Result<()> {
         let resp = WsResponse {
             request_id: Uuid::max(),
-            response: event,
+            response: resp,
         };
         for ws in self.state.get_websockets() {
             ws.send(&resp)?;
