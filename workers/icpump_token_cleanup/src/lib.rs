@@ -1,358 +1,10 @@
-// use std::collections::HashMap;
-// use worker::*;
-// use serde_json::json;
-// use reqwest::Client;
-// use gcloud_sdk::google::cloud::bigquery::v2::Job;
-// use gcloud_sdk::*;
-// use std::env;
-
-
-// #[event(fetch)]
-// pub async fn main(req: Request, env: Env, ctx: worker::Context) -> Result<Response> {
-//     match init(&env).await {
-//         Ok(message) => Response::ok(message),
-//         Err(e) => Response::error(e.to_string(), 500),
-//     }
-//     match run_reconciliation(&env).await {
-//         Ok(_) => Response::ok("Reconciliation completed."),
-//         Err(e) => Response::error(e.to_string(), 500),
-//     }
-
-//     let keys = list_all_entries(&env).await?;
-//     Response::ok(format!("Keys: {:?}", keys));
-
-//     match remove_entries(keys).await {
-//         Ok(_) => Response::ok("Entries removed."),
-//         Err(e) => Response::error(e.to_string(), 500),
-//     }
-// }
-
-// async fn init(env: &Env) -> Result<String, Box<dyn std::error::Error>> {
-//     // Step 1: Set up a Cloudflare KV database
-//     setup_kv_database(env).await?;
-
-//     // Step 2: Snapshot Firestore Database
-//     let firestore_snapshot = snapshot_firestore(env).await?;
-
-//     // Step 3: Snapshot BigQuery Dataset
-//     let bigquery_snapshot = snapshot_bigquery(env).await?;
-
-//     // Step 4: Check that everything worked out fine
-//     if !firestore_snapshot.success || !bigquery_snapshot.success {
-//         return Err(Box::new(std::io::Error::new(
-//             std::io::ErrorKind::Other,
-//             format!(
-//                 "Snapshot failed: Firestore: {:?}, BigQuery: {:?}",
-//                 firestore_snapshot, bigquery_snapshot
-//             ),
-//         )));
-//     }
-
-//     Ok("Snapshots completed and initiated.".to_string())
-// }
-
-// async fn remove_entries(keys: Vec<(String, Option<String>)>) -> Result<(), Box<dyn std::error::Error>> {
-    
-    
-//     // delete_token_from_firestore(token_id).await?;2Z
-//     // delete_rows_from_bigquery(dataset, table, condition).await?;
-
-//     // let kv = env.kv("MY_KV_NAMESPACE")?;
-//     // kv.delete("actionable_item")?.execute().await?;
-//     // Ok("Data removed".to_string());
-
-//     Ok(())
-// }
-
-// pub async fn delete_token_from_firestore(token_id: &str) -> Result<(), FirestoreError> {
-//     // Initialize Firestore
-//     let firestore_db: FirestoreDb = expect_context(); // Ensure Firestore context is available
-
-//     // Define the collection name
-//     const TEST_COLLECTION_NAME: &str = "tokens-list";
-
-//     // Delete the document
-//     firestore_db
-//         .fluent()
-//         .delete()
-//         .from(TEST_COLLECTION_NAME)
-//         .document_id(token_id)
-//         .execute()
-//         .await?;
-
-//     Ok(())
-// }
-
-// pub async fn delete_rows_from_bigquery(
-//     dataset_name: &str,
-//     table_name: &str,
-//     condition: &str,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     // Initialize the Google Cloud client
-//     let google_project_id = env::var("GOOGLE_PROJECT_ID")?; // Replace with your project ID or load from the environment
-//     let bigquery_client = gcloud_sdk::GoogleCloudClient::new_default().await?;
-
-//     // Build the DELETE SQL query
-//     let delete_query = format!(
-//         "DELETE FROM `{project_id}.{dataset}.{table}` WHERE {condition}",
-//         project_id = google_project_id,
-//         dataset = dataset_name,
-//         table = table_name,
-//         condition = condition
-//     );
-
-//     println!("Executing query: {}", delete_query);
-
-//     // Execute the DELETE query
-//     let job = Job {
-//         configuration: Some(gcloud_sdk::google::cloud::bigquery::v2::JobConfiguration {
-//             query: Some(gcloud_sdk::google::cloud::bigquery::v2::JobConfigurationQuery {
-//                 query: Some(delete_query),
-//                 use_legacy_sql: Some(false), // Use Standard SQL
-//                 ..Default::default()
-//             }),
-//             ..Default::default()
-//         }),
-//         ..Default::default()
-//     };
-
-//     let response = bigquery_client
-//         .bigquery()
-//         .jobs()
-//         .insert(job, &google_project_id)
-//         .await?;
-
-//     println!("Delete job submitted: {:?}", response);
-
-//     Ok(())
-// }
-
-
-// #[derive(Debug)]
-// struct SnapshotResult {
-//     success: bool,
-//     data: Option<String>,
-//     error: Option<String>,
-// }
-
-// #[derive(Debug, serde::Serialize)]
-// struct Actionable {
-//     info: String,
-//     action: String,
-//     location: String,
-// }
-
-// async fn setup_kv_database(env: &Env) -> Result<(), Box<dyn std::error::Error>> {
-//     let kv = env.kv("MY_KV_NAMESPACE")?;
-
-//     // Initialize some example data
-//     kv.put("initialized", "true")?.execute().await?;
-//     kv.put("last_updated", chrono::Utc::now().to_string().as_str())?.execute().await?;
-
-//     console_log!("KV database setup completed.");
-
-//     Ok(())
-// }
-
-// async fn snapshot_firestore(env: &Env) -> Result<SnapshotResult, Box<dyn std::error::Error>> {
-//     let firestore_url = "https://firestore.googleapis.com/v1/projects/YOUR_PROJECT_ID/databases/(default)/documents:export";
-//     let token = get_access_token(env).await?;
-
-//     let client = Client::new();
-//     let response = client
-//         .post(firestore_url)
-//         .header("Authorization", format!("Bearer {}", token))
-//         .header("Content-Type", "application/json")
-//         .send()
-//         .await?;
-
-//     if response.status().is_success() {
-//         Ok(SnapshotResult {
-//             success: true,
-//             data: Some(response.text().await?),
-//             error: None,
-//         })
-//     } else {
-//         Ok(SnapshotResult {
-//             success: false,
-//             data: None,
-//             error: Some(response.text().await?),
-//         })
-//     }
-// }
-
-// async fn snapshot_bigquery(env: &Env) -> Result<SnapshotResult, Box<dyn std::error::Error>> {
-//     let bigquery_url = "https://bigquery.googleapis.com/bigquery/v2/projects/YOUR_PROJECT_ID/jobs";
-//     let token = get_access_token(env).await?;
-
-//     let body = json!({
-//         "configuration": {
-//             "extract": {
-//                 "sourceTable": {
-//                     "projectId": "YOUR_PROJECT_ID",
-//                     "datasetId": "YOUR_DATASET_ID",
-//                     "tableId": "YOUR_TABLE_ID"
-//                 },
-//                 "destinationUris": ["gs://YOUR_BUCKET_NAME/your-snapshot-file"],
-//                 "destinationFormat": "NEWLINE_DELIMITED_JSON"
-//             }
-//         }
-//     });
-
-//     let client = Client::new();
-//     let response = client
-//         .post(bigquery_url)
-//         .header("Authorization", format!("Bearer {}", token))
-//         .header("Content-Type", "application/json")
-//         .body(body.to_string())
-//         .send()
-//         .await?;
-
-//     if response.status().is_success() {
-//         Ok(SnapshotResult {
-//             success: true,
-//             data: Some(response.text().await?),
-//             error: None,
-//         })
-//     } else {
-//         Ok(SnapshotResult {
-//             success: false,
-//             data: None,
-//             error: Some(response.text().await?),
-//         })
-//     }
-// }
-
-// async fn get_access_token(env: &Env) -> Result<String, Box<dyn std::error::Error>> {
-//     let client_email = env.var("GCP_CLIENT_EMAIL")?.to_string();
-//     let private_key = env.var("GCP_PRIVATE_KEY")?.to_string();
-
-//     let header = base64::encode(serde_json::to_string(&json!({
-//         "alg": "RS256",
-//         "typ": "JWT"
-//     }))?);
-
-//     let iat = chrono::Utc::now().timestamp();
-//     let exp = iat + 3600;
-//     let payload = base64::encode(serde_json::to_string(&json!({
-//         "iss": client_email,
-//         "scope": "https://www.googleapis.com/auth/cloud-platform",
-//         "aud": "https://oauth2.googleapis.com/token",
-//         "exp": exp,
-//         "iat": iat
-//     }))?);
-
-//     let unsigned_token = format!("{}.{}", header, payload);
-
-//     let key = rsa::RsaPrivateKey::from_pkcs1_pem(&private_key)?;
-//     let signature = base64::encode(key.sign(
-//         rsa::PaddingScheme::PKCS1v15Sign { hash: None },
-//         &sha2::Sha256::digest(unsigned_token.as_bytes())
-//     )?);
-
-//     let jwt = format!("{}.{}", unsigned_token, signature);
-
-//     let client = Client::new();
-//     let response = client
-//         .post("https://oauth2.googleapis.com/token")
-//         .header("Content-Type", "application/x-www-form-urlencoded")
-//         .body(format!("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion={}", jwt))
-//         .send()
-//         .await?;
-
-//     let json: HashMap<String, String> = response.json().await?;
-//     Ok(json.get("access_token").ok_or("Missing access token")?.to_string())
-// }
-
-// async fn run_reconciliation(env: &Env) -> Result<(), Box<dyn std::error::Error>> {
-    
-//     // Reconciliation logic
-//     let agent = create_agent(env).await;
-//     let cans_ids: Vec<Principal> = get_all_available_cansiters_from_networks(&agent).await?;
-
-
-    
-
-//     let actionable = Actionable {
-//         info: "hash_value_example".to_string(),
-//         action: "sync".to_string(),
-//         location: "us-central1".to_string(),
-//     };
-
-//     let kv = env.kv("MY_KV_NAMESPACE")?;
-//     kv.put("actionable_item", &serde_json::to_string(&actionable)?)?.execute().await?;
-
-//     console_log!("Reconciliation logic executed with actionable item: {:?}", actionable);
-
-//     Ok(())
-// }
-
-// async fn list_all_entries(env: &Env) -> Result<Vec<String>> {
-//     let kv = env.kv("MY_KV_NAMESPACE")?;
-//     let mut cursor: Option<String> = None;
-//     let mut all_keys = Vec::new();
-//     loop {
-//         let list_result = kv.list().cursor(cursor).execute().await?;
-//         all_keys.extend(list_result.keys.into_iter().map(|key| key.name));
-//         if list_result.cursor.is_none() {
-//             break;
-//         }
-//         cursor = list_result.cursor;
-//     }
-//     Ok(all_keys)
-// }
-
-// async fn fetch_kv_values_parallel(env: &Env, keys: Vec<String>) -> Result<Vec<(String, Option<String>)>> {
-//     let kv = env.kv("MY_KV_NAMESPACE")?;
-
-//     // Use join_all to fetch all values in parallel
-//     let fetches = keys.into_iter().map(|key| {
-//         let kv_clone = kv.clone(); // Clone kv for parallel access
-//         async move {
-//             let value = kv_clone.get(&key).text().await?;
-//             Ok::<_, worker::Error>((key, value))
-//         }
-//     });
-
-//     let results = future::join_all(fetches).await;
-
-//     // Collect results into Vec<(String, Option<String>)>
-//     Ok(results.into_iter().filter_map(Result::ok).collect())
-// }
-
-// pub async fn get_all_available_cansiters_from_networks(agent: &Agent) -> Result<Vec<Principal>> {
-//     let user_indexes = get_all_user_indexes(agent).await?;
-
-//     let mut ret = vec![];
-//     for user_index in user_indexes {
-//         let cans = get_all_available_canisters(&agent, user_index).await?;
-//         ret.extend(cans);
-//     }
-
-//     Ok(ret)
-// }
-
-// async fn get_all_available_canisters(
-//     agent: &Agent,
-//     user_index: Principal,
-// ) -> Result<Vec<Principal>> {
-//     let res = agent
-//         .query(&user_index, "get_user_canister_list")
-//         .with_arg(Encode!().unwrap())
-//         .await
-//         .map_err(|e| e.to_string())?;
-//     Ok(Decode!(&res, Vec<Principal>).map_err(|e| e.to_string())?)
-// }
-
-// pub fn generate_share_link(root: &RootType, key_principal: Principal) -> String {
-//     format!("/token/info/{key_principal}", root)
-// }
-
-use worker::*;
+use candid::{Decode, Encode, Principal};
+use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::HashSet;
+use worker::*;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TokenListItem {
     pub user_id: String,
     pub name: String,
@@ -367,124 +19,152 @@ pub struct TokenListItem {
     pub is_nsfw: bool,
 }
 
-// Firebase-like document structure
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Document {
-    pub id: String,
-    pub data: TokenListItem,
-}
-
-/// Fetch all documents from Firestore
-async fn fetch_documents(
-    env: &Env,
-    collection_name: &str,
-) -> Result<HashMap<String, TokenListItem>, String> {
+async fn fetch_documents(env: &Env) -> Result<Vec<TokenListItem>> {
     let firestore_url = format!(
-        "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/{collection_name}",
+        "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/tokens",
         project_id = env.var("FIREBASE_PROJECT_ID")?.to_string(),
-        collection_name = collection_name
     );
 
     let client = reqwest::Client::new();
-    let api_key = env.var("FIREBASE_API_KEY")?.to_string();
+    let api_key = env.secret("FIREBASE_API_KEY")?.to_string();
     let response = client
         .get(firestore_url)
         .query(&[("key", &api_key)])
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch documents: {}", e))?;
+        .map_err(|e| Error::from(e.to_string()))?;
 
     if response.status().is_success() {
-        let data: HashMap<String, Document> = response
-            .json::<HashMap<String, Document>>()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-        let mut results = HashMap::new();
-        for (key, doc) in data {
-            results.insert(key, doc.data);
-        }
-
-        Ok(results)
+        let data: serde_json::Value = response.json().await
+            .map_err(|e| Error::from(e.to_string()))?;
+        
+        let documents = data["documents"].as_array()
+            .ok_or_else(|| Error::from("No documents found"))?;
+        
+        let firestore_entries: Vec<TokenListItem> = documents
+            .iter()
+            .filter_map(|doc| {
+                serde_json::from_value(doc["fields"].clone()).ok()
+            })
+            .collect();
+        
+        Ok(firestore_entries)
     } else {
-        Err(format!(
+        Err(Error::from(format!(
             "Failed to fetch documents: {}",
             response.status()
-        ))
+        )))
     }
 }
 
-/// Validate tokens using the external API and return a vector of invalid token IDs
-async fn validate_tokens(
-    tokens: HashMap<String, TokenListItem>,
-) -> Result<Vec<String>, String> {
-    let mut invalid_tokens = Vec::new();
+async fn create_agent(env: &Env) -> Result<Agent> {
+    let pk = env.secret("RECLAIM_CANISTER_PEM")?.to_string();
+    let identity = ic_agent::identity::BasicIdentity::from_pem(
+        stringreader::StringReader::new(pk.as_str()),
+    ).map_err(|e| Error::from(e.to_string()))?;
 
-    for (id, token) in tokens {
-        let api_url = format!("https://icpump.fun{}", token.link);
-        match reqwest::get(&api_url).await {
-            Ok(response) => {
-                if !response.status().is_success() {
-                    invalid_tokens.push(id);
-                }
-            }
-            Err(_) => {
-                invalid_tokens.push(id);
+    let agent = Agent::builder()
+        .with_url("https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app")
+        .with_identity(identity)
+        .build()
+        .map_err(|e| Error::from(e.to_string()))?;
+
+    Ok(agent)
+}
+
+async fn get_user_canister(agent: &Agent, user_principal: Principal) -> Result<Option<Principal>> {
+    let user_index = Principal::from_text("rimrc-piaaa-aaaao-aaljq-cai")
+        .map_err(|e| Error::from(e.to_string()))?;
+
+    let response = agent
+        .query(&user_index, "get_user_canister_id_from_user_principal_id")
+        .with_arg(Encode!(&user_principal).map_err(|e| Error::from(e.to_string()))?)
+        .call()
+        .await
+        .map_err(|e| Error::from(e.to_string()))?;
+
+    let canister: Option<Principal> = Decode!(&response, Option<Principal>)
+        .map_err(|e| Error::from(e.to_string()))?;
+
+    Ok(canister)
+}
+
+async fn find_invalid_tokens(env: &Env) -> Result<Vec<TokenListItem>> {
+    let firestore_entries = fetch_documents(env).await?;
+    
+    let token_users: HashSet<String> = firestore_entries
+        .iter()
+        .map(|entry| entry.user_id.clone())
+        .collect();
+    
+    let agent = create_agent(env).await?;
+    let mut valid_canisters = HashSet::new();
+    
+    for user_id in token_users {
+        if let Ok(user_principal) = Principal::from_text(&user_id) {
+            if let Ok(Some(canister)) = get_user_canister(&agent, user_principal).await {
+                valid_canisters.insert(canister);
             }
         }
     }
-
+    
+    let mut invalid_tokens = Vec::new();
+    
+    for entry in firestore_entries {
+        let token_canister = entry.link
+            .split('/')
+            .last()
+            .and_then(|id| Principal::from_text(id).ok());
+            
+        match token_canister {
+            Some(principal) if !valid_canisters.contains(&principal) => {
+                invalid_tokens.push(entry);
+            }
+            None => {
+                invalid_tokens.push(entry);
+            }
+            _ => {}
+        }
+    }
+    
     Ok(invalid_tokens)
 }
 
-/// Delete invalid tokens from Firestore
-async fn delete_tokens(
-    env: &Env,
-    collection_name: &str,
-    invalid_tokens: Vec<String>,
-) -> Result<(), String> {
-    let firestore_url = format!(
-        "https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/{collection_name}",
-        project_id = env.var("FIREBASE_PROJECT_ID")?.to_string(),
-        collection_name = collection_name
-    );
-
-    let client = reqwest::Client::new();
-    let api_key = env.var("FIREBASE_API_KEY")?.to_string();
-
-    for token_id in invalid_tokens {
-        let url = format!("{}/{}", firestore_url, token_id);
-        let response = client
-            .delete(&url)
-            .query(&[("key", &api_key)])
-            .send()
-            .await;
-
-        if response.is_err() || !response.unwrap().status().is_success() {
-            return Err(format!("Failed to delete token: {}", token_id));
-        }
-    }
-
-    Ok(())
-}
-
 #[event(fetch)]
-pub async fn main(req: Request, env: Env) -> Result<Response> {
-    // Parse collection name from request query params
-    let url = req.url()?;
-    let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
-    let collection_name = params.get("collection").unwrap_or(&"tokens-list".to_string());
+pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    Router::new()
+        .get_async("/", |req, env, _ctx| async move {
+            let cors = Cors::new()
+                .with_origins(vec!["*"])
+                .with_methods(vec![Method::Get, Method::Post, Method::Options])
+                .with_max_age(86400);
 
-    // Fetch documents from Firestore
-    let tokens = fetch_documents(&env, collection_name).await?;
-    
-    // Validate tokens
-    let invalid_tokens = validate_tokens(tokens).await?;
+            if req.method() == Method::Options {
+                return Response::empty()
+                    .map(|resp| cors.apply(resp));
+            }
 
-    // Delete invalid tokens
-    if !invalid_tokens.is_empty() {
-        delete_tokens(&env, collection_name, invalid_tokens.clone()).await?;
-    }
+            let auth_header = req.headers()
+                .get("Authorization")?
+                .ok_or_else(|| Error::from("Missing authorization header"))?;
 
-    Response::ok(format!("Invalid tokens deleted: {:?}", invalid_tokens))
+            if auth_header != env.secret("WORKER_AUTH_TOKEN")?.to_string() {
+                return Response::error("Unauthorized", 401);
+            }
+
+            match find_invalid_tokens(&env).await {
+                Ok(invalid_tokens) => {
+                    let json = serde_json::json!({
+                        "invalid_tokens": invalid_tokens,
+                        "count": invalid_tokens.len()
+                    });
+                    
+                    Response::from_json(&json)
+                        .map(|resp| cors.apply(resp))
+                }
+                Err(e) => Response::error(format!("Error: {}", e), 500),
+            }
+        })
+        .run(req, env)
+        .await
 }
