@@ -6,6 +6,7 @@ use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, CompletedGameInfo, DecrementReq, StateDiff},
+    utils::RequestInitBuilder,
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -195,12 +196,12 @@ impl GameState {
             state_diff,
             user_canister: user,
         };
-        let mut req_init = RequestInit::new();
         let req = Request::new_with_init(
             "http://fake_url.com/add_reward",
-            req_init
-                .with_method(Method::Post)
-                .with_body(Some(serde_wasm_bindgen::to_value(&body)?)),
+            RequestInitBuilder::default()
+                .method(Method::Post)
+                .json(&body)?
+                .build(),
         )?;
 
         let user_state = self.user_state_stub(user)?;
@@ -210,7 +211,7 @@ impl GameState {
     }
 
     async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<()> {
-        let start_epoch_ms = Date::now().as_millis() + 10 * 10000;
+        let start_epoch_ms = Date::now().as_millis() + 10 * 1000;
 
         let rewards = RewardIter::new(
             *self.pumps().await,
@@ -219,15 +220,12 @@ impl GameState {
             token_root,
             std::mem::take(self.bets().await),
         );
+        self.state.storage().delete_all().await?;
         self.state
             .storage()
-            .transaction(move |mut txn| async move {
-                txn.delete_all().await?;
-                txn.put("start_epoch_ms", start_epoch_ms).await?;
-
-                Ok(())
-            })
+            .put("start_epoch_ms", start_epoch_ms)
             .await?;
+
         self.pumps = Some(0);
         self.dumps = Some(0);
         self.start_epoch_ms = Some(start_epoch_ms);
@@ -330,16 +328,16 @@ impl GameState {
         }
 
         let user_state = self.user_state_stub(game_req.sender)?;
-        let mut req_init = RequestInit::new();
         let body = DecrementReq {
             user_canister: game_req.sender,
             token_root: game_req.token_root,
         };
         let req = Request::new_with_init(
             "http://fake_url.com/decrement",
-            req_init
-                .with_method(Method::Post)
-                .with_body(Some(serde_wasm_bindgen::to_value(&body)?)),
+            RequestInitBuilder::default()
+                .method(Method::Post)
+                .json(&body)?
+                .build(),
         )?;
 
         let res = user_state.fetch_with_request(req).await?;

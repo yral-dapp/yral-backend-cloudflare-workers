@@ -14,6 +14,7 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::ClaimGdollrReq;
+use utils::RequestInitBuilder;
 use worker::*;
 use yral_identity::Signature;
 
@@ -52,12 +53,13 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
         user_canister,
         amount: req.amount,
     };
-    let mut req_init = RequestInit::new();
+
     let req = Request::new_with_init(
         "http://fake_url.com/claim_gdollr",
-        req_init
-            .with_method(Method::Post)
-            .with_body(Some(serde_wasm_bindgen::to_value(&body)?)),
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&body)?
+            .build(),
     )?;
     bal_stub.fetch_with_request(req).await?;
 
@@ -201,14 +203,22 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
     headers.set("Upgrade", "websocket")?;
     let new_req = Request::new_with_init(
         dbg!(url.as_str()),
-        RequestInit::default()
-            .with_method(Method::Get)
-            .with_headers(headers),
+        RequestInitBuilder::default()
+            .method(Method::Get)
+            .replace_headers(headers)
+            .build(),
     )?;
 
     game_stub.fetch_with_request(new_req).await.inspect(|res| {
         console_log!("fetch with req: {}", res.status_code());
     })
+}
+
+fn cors_policy() -> Cors {
+    Cors::new()
+        .with_origins(["*"])
+        .with_methods([Method::Head, Method::Get, Method::Post, Method::Options])
+        .with_max_age(86400)
 }
 
 #[event(fetch)]
@@ -217,7 +227,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let router = Router::new();
 
-    router
+    let res = router
         .post_async("/claim_gdollr", claim_gdollr)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
         .get_async("/game_count/:user_canister", |_req, ctx| {
@@ -234,5 +244,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             estabilish_game_ws(req, ctx)
         })
         .run(req, env)
-        .await
+        .await?;
+
+    res.with_cors(&cors_policy())
 }

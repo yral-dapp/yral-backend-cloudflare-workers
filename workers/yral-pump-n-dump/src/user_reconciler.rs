@@ -196,7 +196,7 @@ impl UserEphemeralState {
         let mut pending_games = HashSet::new();
         for entry in pending_games_idx.entries() {
             let raw_entry = entry.expect("invalid pending games stored?!");
-            let (key, _): (String, ()) =
+            let (key, _): (String, u32) =
                 serde_wasm_bindgen::from_value(raw_entry).expect("invalid pending games stored?!");
             let pending_game =
                 Principal::from_text(key.strip_prefix("pending-game-").unwrap()).unwrap();
@@ -255,7 +255,7 @@ impl UserEphemeralState {
             .storage()
             .put(
                 "off_chain_balance_delta",
-                self.off_chain_balance_delta.clone(),
+                &self.off_chain_balance_delta.as_ref().unwrap(),
             )
             .await?;
 
@@ -266,7 +266,7 @@ impl UserEphemeralState {
 
         self.state
             .storage()
-            .put(&format!("pending-game-{pending_game_root}"), ())
+            .put(&format!("pending-game-{pending_game_root}"), 0u32)
             .await?;
 
         Ok(())
