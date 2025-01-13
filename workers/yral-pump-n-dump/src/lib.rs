@@ -17,7 +17,7 @@ use user_reconciler::ClaimGdollrReq;
 use worker::*;
 use yral_identity::Signature;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GameWsQuery {
     sender: String,
     signature: String,
@@ -165,7 +165,7 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
     };
 
     let raw_query: GameWsQuery = req.query()?;
-    let Ok(sender) = Principal::from_text(raw_query.sender) else {
+    let Ok(sender) = Principal::from_text(&raw_query.sender) else {
         return Response::error("invalid sender", 400);
     };
     let Ok(signature) = serde_json::from_str::<Signature>(&raw_query.signature) else {
@@ -191,11 +191,24 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
     let game_state_obj = game_state.id_from_name(&format!("{}-{}", game_canister, token_root))?;
     let game_stub = game_state_obj.get_stub()?;
 
-    let mut new_req = req.clone_mut()?;
-    let new_path = new_req.path_mut()?;
-    *new_path = format!("/ws/{game_canister}/{token_root}/{user_canister}");
+    let mut url = Url::parse(&format!(
+        "http://fakeurl.com/ws/{game_canister}/{token_root}/{user_canister}"
+    ))?;
 
-    game_stub.fetch_with_request(new_req).await
+    url.set_query(Some(&format!("sender={}", raw_query.sender)));
+    url.set_query(Some(&format!("signature={}", raw_query.signature)));
+    let mut headers = Headers::new();
+    headers.set("Upgrade", "websocket")?;
+    let new_req = Request::new_with_init(
+        dbg!(url.as_str()),
+        RequestInit::default()
+            .with_method(Method::Get)
+            .with_headers(headers),
+    )?;
+
+    game_stub.fetch_with_request(new_req).await.inspect(|res| {
+        console_log!("fetch with req: {}", res.status_code());
+    })
 }
 
 #[event(fetch)]

@@ -25,7 +25,7 @@ pub struct MockUserState {
     games: HashMap<Principal, Vec<ParticipatedGameInfo>>,
 }
 
-const FAKE_BALANCE: u64 = 1000000000000000000;
+const FAKE_BALANCE: u64 = 10 * (1e8 as u64);
 
 impl UserStateBackendImpl for MockUserState {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat> {
