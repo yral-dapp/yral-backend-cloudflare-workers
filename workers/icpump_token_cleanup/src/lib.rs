@@ -130,6 +130,42 @@ async fn find_invalid_tokens(env: &Env) -> Result<Vec<TokenListItem>> {
     Ok(invalid_tokens)
 }
 
+async fn delete_invalid_tokens(
+    env: &Env,
+    invalid_tokens: &[TokenListItem],
+) -> Result<Vec<String>> {
+    let client = reqwest::Client::new();
+    let api_key = env.secret("FIREBASE_API_KEY")?.to_string();
+    let project_id = env.var("FIREBASE_PROJECT_ID")?.to_string();
+    let mut deleted_tokens = Vec::new();
+
+    for token in invalid_tokens {
+        let token_id = token.link
+            .split('/')
+            .last()
+            .ok_or_else(|| Error::from("Invalid token link format"))?;
+
+        let delete_url = format!(
+            "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents/tokens/{}",
+            project_id,
+            token_id
+        );
+
+        let response = client
+            .delete(&delete_url)
+            .query(&[("key", &api_key)])
+            .send()
+            .await
+            .map_err(|e| Error::from(e.to_string()))?;
+
+        if response.status().is_success() {
+            deleted_tokens.push(token_id.to_string());
+        }
+    }
+
+    Ok(deleted_tokens)
+}
+
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     Router::new()
@@ -154,9 +190,17 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             match find_invalid_tokens(&env).await {
                 Ok(invalid_tokens) => {
+                    let deletion_result = if !invalid_tokens.is_empty() {
+                        delete_invalid_tokens(&env, &invalid_tokens).await?
+                    } else {
+                        Vec::new()
+                    };
+
                     let json = serde_json::json!({
                         "invalid_tokens": invalid_tokens,
-                        "count": invalid_tokens.len()
+                        "count": invalid_tokens.len(),
+                        "deleted_tokens": deletion_result,
+                        "deleted_count": deletion_result.len()
                     });
                     
                     Response::from_json(&json)
