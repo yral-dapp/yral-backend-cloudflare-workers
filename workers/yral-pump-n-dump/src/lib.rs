@@ -89,15 +89,6 @@ async fn user_game_count(ctx: RouteContext<()>) -> Result<Response> {
     Ok(res)
 }
 
-async fn game_status(ctx: RouteContext<()>) -> Result<Response> {
-    let game_canister = parse_principal!(ctx, "game_canister");
-    let token_root = parse_principal!(ctx, "token_root");
-
-    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
-
-    game_stub.fetch_with_str("http://fake_url.com/status").await
-}
-
 async fn user_bets_for_game(ctx: RouteContext<()>) -> Result<Response> {
     let game_canister = parse_principal!(ctx, "game_canister");
     let token_root = parse_principal!(ctx, "token_root");
@@ -199,9 +190,6 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             "/bets/:game_canister/:token_root/:user_canister",
             |_req, ctx| user_bets_for_game(ctx),
         )
-        .get_async("/status/:game_canister/:token_root", |_req, ctx| {
-            game_status(ctx)
-        })
         .get_async("/ws/:game_canister/:token_root", |req, ctx| {
             estabilish_game_ws(req, ctx)
         })
