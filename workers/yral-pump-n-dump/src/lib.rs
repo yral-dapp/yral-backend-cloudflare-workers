@@ -167,6 +167,17 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
     })
 }
 
+async fn player_count(ctx: RouteContext<()>) -> Result<Response> {
+    let game_canister = parse_principal!(ctx, "game_canister");
+    let token_root = parse_principal!(ctx, "token_root");
+
+    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
+
+    game_stub
+        .fetch_with_str("http://fake_url.com/player_count")
+        .await
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -192,6 +203,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         )
         .get_async("/ws/:game_canister/:token_root", |req, ctx| {
             estabilish_game_ws(req, ctx)
+        })
+        .get_async("/player_count/:game_canister/:token_root", |_req, ctx| {
+            player_count(ctx)
         })
         .run(req, env)
         .await?;

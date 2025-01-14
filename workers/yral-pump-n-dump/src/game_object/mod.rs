@@ -399,6 +399,11 @@ impl DurableObject for GameState {
                 let total = *this.dumps().await + *this.pumps().await;
                 Response::ok(total.to_string())
             })
+            .get("/player_count", |_req, ctx| {
+                let this = ctx.data;
+                let player_cnt = this.state.get_websockets().len();
+                Response::ok(player_cnt.to_string())
+            })
             .run(req, env)
             .await
     }
