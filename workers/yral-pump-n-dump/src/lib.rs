@@ -3,6 +3,7 @@ mod backend_impl;
 mod consts;
 mod game_object;
 mod user_reconciler;
+#[macro_use]
 mod utils;
 
 use backend_impl::{WsBackend, WsBackendImpl};
@@ -14,7 +15,7 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::ClaimGdollrReq;
-use utils::RequestInitBuilder;
+use utils::{game_state_stub, user_state_stub, RequestInitBuilder};
 use worker::*;
 use yral_identity::Signature;
 
@@ -40,14 +41,12 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
     if let Err((msg, status)) = verify_claim_req(&req) {
         return Response::error(msg, status);
     }
-    let balance_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
     let backend = WsBackend::new(&ctx.env)?;
 
     let Some(user_canister) = backend.user_principal_to_user_canister(req.sender).await? else {
         return Response::error("user not found", 404);
     };
-    let user_bal_obj = balance_obj.id_from_name(&user_canister.to_text())?;
-    let bal_stub = user_bal_obj.get_stub()?;
+    let bal_stub = user_state_stub(&ctx, user_canister)?;
 
     let body = ClaimGdollrReq {
         user_canister,
@@ -67,14 +66,9 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
 }
 
 async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
-    let user_canister_raw = ctx.param("user_canister").unwrap();
-    let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
-        return Response::error("Invalid user_canister", 400);
-    };
+    let user_canister = parse_principal!(ctx, "user_canister");
 
-    let balance_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
-    let user_bal_obj = balance_obj.id_from_name(&user_canister.to_text())?;
-    let bal_stub = user_bal_obj.get_stub()?;
+    let bal_stub = user_state_stub(&ctx, user_canister)?;
 
     let res = bal_stub
         .fetch_with_str(&format!("http://fake_url.com/balance/{user_canister}"))
@@ -84,14 +78,9 @@ async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
 }
 
 async fn user_game_count(ctx: RouteContext<()>) -> Result<Response> {
-    let user_canister_raw = ctx.param("user_canister").unwrap();
-    let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
-        return Response::error("Invalid user_canister", 400);
-    };
+    let user_canister = parse_principal!(ctx, "user_canister");
 
-    let state_obj = ctx.durable_object("USER_EPHEMERAL_STATE")?;
-    let user_state_obj = state_obj.id_from_name(&user_canister.to_text())?;
-    let state_stub = user_state_obj.get_stub()?;
+    let state_stub = user_state_stub(&ctx, user_canister)?;
 
     let res = state_stub
         .fetch_with_str(&format!("http://fake_url.com/game_count/{user_canister}"))
@@ -101,39 +90,20 @@ async fn user_game_count(ctx: RouteContext<()>) -> Result<Response> {
 }
 
 async fn game_status(ctx: RouteContext<()>) -> Result<Response> {
-    let game_canister_raw = ctx.param("game_canister").unwrap();
-    let Ok(game_canister) = Principal::from_text(game_canister_raw) else {
-        return Response::error("Invalid game_canister", 400);
-    };
-    let token_root_raw = ctx.param("token_root").unwrap();
-    let Ok(token_root) = Principal::from_text(token_root_raw) else {
-        return Response::error("Invalid token_root", 400);
-    };
+    let game_canister = parse_principal!(ctx, "game_canister");
+    let token_root = parse_principal!(ctx, "token_root");
 
-    let game_state = ctx.durable_object("GAME_STATE")?;
-    let game_state_obj = game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
-    let game_stub = game_state_obj.get_stub()?;
+    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
 
     game_stub.fetch_with_str("http://fake_url.com/status").await
 }
 
 async fn user_bets_for_game(ctx: RouteContext<()>) -> Result<Response> {
-    let game_canister_raw = ctx.param("game_canister").unwrap();
-    let Ok(game_canister) = Principal::from_text(game_canister_raw) else {
-        return Response::error("Invalid token_creator", 400);
-    };
-    let token_root_raw = ctx.param("token_root").unwrap();
-    let Ok(token_root) = Principal::from_text(token_root_raw) else {
-        return Response::error("Invalid token_root", 400);
-    };
-    let user_canister_raw = ctx.param("user_canister").unwrap();
-    let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
-        return Response::error("Invalid user_canister", 400);
-    };
+    let game_canister = parse_principal!(ctx, "game_canister");
+    let token_root = parse_principal!(ctx, "token_root");
+    let user_canister = parse_principal!(ctx, "user_canister");
 
-    let game_state = ctx.durable_object("GAME_STATE")?;
-    let game_state_obj = game_state.id_from_name(&format!("{game_canister}-{token_root}"))?;
-    let game_stub = game_state_obj.get_stub()?;
+    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
 
     game_stub
         .fetch_with_str(&format!("http://fake_url.com/bets/{user_canister}"))
@@ -157,14 +127,8 @@ fn verify_identify_req(
 }
 
 async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let game_canister_raw = ctx.param("game_canister").unwrap();
-    let Ok(game_canister) = Principal::from_text(game_canister_raw) else {
-        return Response::error("invalid game_canister", 400);
-    };
-    let token_root_raw = ctx.param("token_root").unwrap();
-    let Ok(token_root) = Principal::from_text(token_root_raw) else {
-        return Response::error("invalid token_root", 400);
-    };
+    let game_canister = parse_principal!(ctx, "game_canister");
+    let token_root = parse_principal!(ctx, "token_root");
 
     let raw_query: GameWsQuery = req.query()?;
     let Ok(sender) = Principal::from_text(&raw_query.sender) else {
@@ -189,9 +153,7 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
         return Response::error("invalid token", 400);
     }
 
-    let game_state = ctx.env.durable_object("GAME_STATE")?;
-    let game_state_obj = game_state.id_from_name(&format!("{}-{}", game_canister, token_root))?;
-    let game_stub = game_state_obj.get_stub()?;
+    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
 
     let mut url = Url::parse(&format!(
         "http://fakeurl.com/ws/{game_canister}/{token_root}/{user_canister}"

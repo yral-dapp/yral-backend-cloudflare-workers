@@ -1,6 +1,7 @@
+use candid::Principal;
 use serde::Serialize;
 use wasm_bindgen_futures::wasm_bindgen;
-use worker::{Headers, Method, RequestInit, Result};
+use worker::{Headers, Method, RequestInit, Result, RouteContext, Stub};
 
 #[derive(Default)]
 pub struct RequestInitBuilder(RequestInit);
@@ -49,4 +50,34 @@ pub const fn is_testing() -> bool {
     };
 
     matches!(test_v.as_bytes(), b"1")
+}
+
+macro_rules! parse_principal {
+    ($ctx:ident, $param:literal) => {{
+        let raw = $ctx.param($param).unwrap();
+        let Ok(principal) = candid::Principal::from_text(raw) else {
+            return Response::error(concat!("invalid ", $param), 400);
+        };
+
+        principal
+    }};
+}
+
+pub fn game_state_stub<T>(
+    ctx: &RouteContext<T>,
+    game_canister: Principal,
+    token_root: Principal,
+) -> Result<Stub> {
+    let game_ns = ctx.durable_object("GAME_STATE")?;
+    let game_state_obj = game_ns.id_from_name(&format!("{game_canister}-{token_root}"))?;
+    let game_stub = game_state_obj.get_stub()?;
+
+    Ok(game_stub)
+}
+
+pub fn user_state_stub<T>(ctx: &RouteContext<T>, user_canister: Principal) -> Result<Stub> {
+    let state_ns = ctx.durable_object("USER_EPHEMERAL_STATE")?;
+    let state_obj = state_ns.id_from_name(&user_canister.to_text())?;
+
+    state_obj.get_stub()
 }
