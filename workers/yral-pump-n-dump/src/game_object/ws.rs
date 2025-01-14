@@ -63,13 +63,13 @@ impl GameState {
         let WebSocketIncomingMessage::String(raw_msg) = msg else {
             return Ok(WsResponse {
                 request_id: Uuid::nil(),
-                response: WsResp::Error("unknown request".into()),
+                response: WsResp::error("unknown request"),
             });
         };
         let Ok(ws_req) = serde_json::from_str::<WsRequest>(&raw_msg) else {
             return Ok(WsResponse {
                 request_id: Uuid::nil(),
-                response: WsResp::Error("unknown request".into()),
+                response: WsResp::error("unknown request"),
             });
         };
         let state: WsState = ws.deserialize_attachment()?.unwrap();
@@ -87,7 +87,7 @@ impl GameState {
         if let Err(e) = res {
             return Ok(WsResponse {
                 request_id: ws_req.request_id,
-                response: WsResp::Error(e.to_string()),
+                response: WsResp::bet_failure(e.to_string(), direction),
             });
         }
 
