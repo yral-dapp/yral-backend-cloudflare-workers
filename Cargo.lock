@@ -287,6 +287,7 @@ dependencies = [
  "candid",
  "console_error_panic_hook",
  "futures",
+ "getrandom",
  "ic-agent",
  "serde",
  "serde_json",
@@ -1119,11 +1120,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "icpump_token_cleanupr"
+name = "icpump_token_cleanup"
 version = "0.1.0"
 dependencies = [
  "candid",
  "futures",
+ "getrandom",
  "ic-agent",
  "reqwest 0.11.27",
  "serde",
