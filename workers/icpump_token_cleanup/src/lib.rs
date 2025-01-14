@@ -185,12 +185,16 @@ async fn delete_invalid_tokens(
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     Router::new()
-        .get_async("/", |req, env| async move {
+        .get_async("/", |req: Request, ctx: RouteContext<()>| {
+        async move {
+            // Get env from context instead of cloning
+            let env = ctx.env;
+            
             // Verify authorization
-            let auth_header = match req.headers().get("Authorization") {
-                Ok(Some(header)) => header,
-                _ => return Response::error("Missing authorization header", 401),
-            };
+            let auth_header = req.headers()
+                .get("Authorization")
+                .map_err(|e| Error::from(e.to_string()))?
+                .ok_or_else(|| Error::from("Missing authorization header"))?;
 
             let worker_token = env.secret("WORKER_AUTH_TOKEN")?.to_string();
             if auth_header != worker_token {
@@ -198,28 +202,26 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             }
 
             // Process the request
-            match find_invalid_tokens(&env).await {
-                Ok(invalid_tokens) => {
-                    let deletion_result = if !invalid_tokens.is_empty() {
-                        match delete_invalid_tokens(&env, &invalid_tokens).await {
-                            Ok(result) => result,
-                            Err(e) => return Response::error(format!("Deletion error: {}", e), 500),
-                        }
-                    } else {
-                        Vec::new()
-                    };
+            let invalid_tokens = find_invalid_tokens(&env).await
+                .map_err(|e| Error::from(format!("Error finding invalid tokens: {}", e)))?;
 
-                    let response_data = serde_json::json!({
-                        "invalid_tokens": invalid_tokens,
-                        "count": invalid_tokens.len(),
-                        "deleted_tokens": deletion_result,
-                        "deleted_count": deletion_result.len()
-                    });
+            let deletion_result = if !invalid_tokens.is_empty() {
+                delete_invalid_tokens(&env, &invalid_tokens).await
+                    .map_err(|e| Error::from(format!("Deletion error: {}", e)))?
+            } else {
+                Vec::new()
+            };
 
-                    Response::from_json(&response_data)
-                }
-                Err(e) => Response::error(format!("Error finding invalid tokens: {}", e), 500),
-            }
+            let response_data = serde_json::json!({
+                "invalid_tokens": invalid_tokens,
+                "count": invalid_tokens.len(),
+                "deleted_tokens": deletion_result,
+                "deleted_count": deletion_result.len()
+            });
+
+            Response::from_json(&response_data)
+                .map_err(|e| Error::from(e.to_string()))
+        }
         })
         .run(req, env)
         .await
