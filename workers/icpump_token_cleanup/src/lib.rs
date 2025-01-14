@@ -1,7 +1,6 @@
 use candid::{Decode, Encode, Principal};
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use worker::*;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -57,73 +56,90 @@ async fn fetch_documents(env: &Env) -> Result<Vec<TokenListItem>> {
     }
 }
 
-async fn create_agent(env: &Env) -> Result<Agent> {
-    let pk = env.secret("RECLAIM_CANISTER_PEM")?.to_string();
-    let identity = ic_agent::identity::BasicIdentity::from_pem(
-        stringreader::StringReader::new(pk.as_str()),
-    ).map_err(|e| Error::from(e.to_string()))?;
-
+async fn create_agent() -> Result<Agent> {
     let agent = Agent::builder()
         .with_url("https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app")
-        .with_identity(identity)
         .build()
         .map_err(|e| Error::from(e.to_string()))?;
-
     Ok(agent)
 }
 
+#[derive(Deserialize)]
+struct UserMetadata {
+    user_canister_id: Principal,
+    user_name: String,
+}
+
 async fn get_user_canister(agent: &Agent, user_principal: Principal) -> Result<Option<Principal>> {
-    let user_index = Principal::from_text("rimrc-piaaa-aaaao-aaljq-cai")
+    let client = reqwest::Client::new();
+    let metadata_url = format!("https://yral-metadata.dev/metadata/{}", user_principal.to_string());
+    
+    let response = client
+        .get(metadata_url)
+        .send()
+        .await
         .map_err(|e| Error::from(e.to_string()))?;
 
+    if response.status().is_success() {
+        let metadata: Option<UserMetadata> = response
+            .json()
+            .await
+            .map_err(|e| Error::from(e.to_string()))?;
+            
+        Ok(metadata.map(|m| m.user_canister_id))
+    } else {
+        Err(Error::from(format!(
+            "Failed to fetch user metadata: {}",
+            response.status()
+        )))
+    }
+}
+
+#[derive(Deserialize)]
+struct DeployedCanisters {
+    cdao_canisters: Vec<Principal>
+}
+
+async fn get_deployed_canisters(agent: &Agent, user_canister: Principal) -> Result<Option<Vec<Principal>>> {
     let response = agent
-        .query(&user_index, "get_user_canister_id_from_user_principal_id")
-        .with_arg(Encode!(&user_principal).map_err(|e| Error::from(e.to_string()))?)
+        .query(&user_canister, "deployed_cdao_canisters")
+        .with_arg(Encode!().map_err(|e| Error::from(e.to_string()))?)
         .call()
         .await
         .map_err(|e| Error::from(e.to_string()))?;
 
-    let canister: Option<Principal> = Decode!(&response, Option<Principal>)
+    let canisters = Decode!(response.as_slice(), Vec<Principal>)
         .map_err(|e| Error::from(e.to_string()))?;
-
-    Ok(canister)
+    
+    Ok(Some(canisters))
 }
 
 async fn find_invalid_tokens(env: &Env) -> Result<Vec<TokenListItem>> {
     let firestore_entries = fetch_documents(env).await?;
-    
-    let token_users: HashSet<String> = firestore_entries
-        .iter()
-        .map(|entry| entry.user_id.clone())
-        .collect();
-    
-    let agent = create_agent(env).await?;
-    let mut valid_canisters = HashSet::new();
-    
-    for user_id in token_users {
-        if let Ok(user_principal) = Principal::from_text(&user_id) {
-            if let Ok(Some(canister)) = get_user_canister(&agent, user_principal).await {
-                valid_canisters.insert(canister);
-            }
-        }
-    }
-    
+    let agent = create_agent().await?;
     let mut invalid_tokens = Vec::new();
     
     for entry in firestore_entries {
-        let token_canister = entry.link
+        if let Some(token_principal) = entry.link
             .split('/')
             .last()
-            .and_then(|id| Principal::from_text(id).ok());
-            
-        match token_canister {
-            Some(principal) if !valid_canisters.contains(&principal) => {
-                invalid_tokens.push(entry);
+            .and_then(|id| Principal::from_text(id).ok()) 
+        {
+            if let Ok(user_principal) = Principal::from_text(&entry.user_id) {
+                if let Ok(Some(user_canister)) = get_user_canister(&agent, user_principal).await {
+                    if let Ok(Some(deployed_canisters)) = get_deployed_canisters(&agent, user_canister).await {
+                        if !deployed_canisters.contains(&token_principal) {
+                            invalid_tokens.push(entry);
+                        }
+                        continue;
+                    }
+                }
             }
-            None => {
-                invalid_tokens.push(entry);
-            }
-            _ => {}
+            //what if check fails 
+            invalid_tokens.push(entry);
+        } else {
+            // invalid_token canister ID
+            invalid_tokens.push(entry);
         }
     }
     
@@ -169,44 +185,40 @@ async fn delete_invalid_tokens(
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     Router::new()
-        .get_async("/", |req, env, _ctx| async move {
-            let cors = Cors::new()
-                .with_origins(vec!["*"])
-                .with_methods(vec![Method::Get, Method::Post, Method::Options])
-                .with_max_age(86400);
+        .get_async("/", |req, env| async move {
+            // Verify authorization
+            let auth_header = match req.headers().get("Authorization") {
+                Ok(Some(header)) => header,
+                _ => return Response::error("Missing authorization header", 401),
+            };
 
-            if req.method() == Method::Options {
-                return Response::empty()
-                    .map(|resp| cors.apply(resp));
-            }
-
-            let auth_header = req.headers()
-                .get("Authorization")?
-                .ok_or_else(|| Error::from("Missing authorization header"))?;
-
-            if auth_header != env.secret("WORKER_AUTH_TOKEN")?.to_string() {
+            let worker_token = env.secret("WORKER_AUTH_TOKEN")?.to_string();
+            if auth_header != worker_token {
                 return Response::error("Unauthorized", 401);
             }
 
+            // Process the request
             match find_invalid_tokens(&env).await {
                 Ok(invalid_tokens) => {
                     let deletion_result = if !invalid_tokens.is_empty() {
-                        delete_invalid_tokens(&env, &invalid_tokens).await?
+                        match delete_invalid_tokens(&env, &invalid_tokens).await {
+                            Ok(result) => result,
+                            Err(e) => return Response::error(format!("Deletion error: {}", e), 500),
+                        }
                     } else {
                         Vec::new()
                     };
 
-                    let json = serde_json::json!({
+                    let response_data = serde_json::json!({
                         "invalid_tokens": invalid_tokens,
                         "count": invalid_tokens.len(),
                         "deleted_tokens": deletion_result,
                         "deleted_count": deletion_result.len()
                     });
-                    
-                    Response::from_json(&json)
-                        .map(|resp| cors.apply(resp))
+
+                    Response::from_json(&response_data)
                 }
-                Err(e) => Response::error(format!("Error: {}", e), 500),
+                Err(e) => Response::error(format!("Error finding invalid tokens: {}", e), 500),
             }
         })
         .run(req, env)
