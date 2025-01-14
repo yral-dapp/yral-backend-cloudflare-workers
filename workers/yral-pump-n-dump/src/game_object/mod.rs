@@ -17,7 +17,6 @@ use worker::*;
 pub struct GameState {
     state: State,
     env: Env,
-    start_epoch_ms: Option<u64>,
     pumps: Option<u64>,
     dumps: Option<u64>,
     // Principal: (pumps, dumps)
@@ -144,21 +143,6 @@ impl GameState {
         self.dumps.as_mut().unwrap()
     }
 
-    async fn start_epoch_ms(&mut self) -> &mut u64 {
-        if self.start_epoch_ms.is_some() {
-            return self.start_epoch_ms.as_mut().unwrap();
-        }
-
-        let start_epoch_ms = self
-            .state
-            .storage()
-            .get("start_epoch_ms")
-            .await
-            .unwrap_or_default();
-        self.start_epoch_ms = Some(start_epoch_ms);
-        self.start_epoch_ms.as_mut().unwrap()
-    }
-
     async fn bets(&mut self) -> &mut HashMap<Principal, [u64; 2]> {
         if self.bets.is_some() {
             return self.bets.as_mut().unwrap();
@@ -211,8 +195,6 @@ impl GameState {
     }
 
     async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<()> {
-        let start_epoch_ms = Date::now().as_millis() + 10 * 1000;
-
         let rewards = RewardIter::new(
             *self.pumps().await,
             *self.dumps().await,
@@ -221,14 +203,9 @@ impl GameState {
             std::mem::take(self.bets().await),
         );
         self.state.storage().delete_all().await?;
-        self.state
-            .storage()
-            .put("start_epoch_ms", start_epoch_ms)
-            .await?;
 
         self.pumps = Some(0);
         self.dumps = Some(0);
-        self.start_epoch_ms = Some(start_epoch_ms);
 
         let game_res = GameResult {
             direction: rewards.outcome,
@@ -323,10 +300,6 @@ impl GameState {
     }
 
     async fn game_request(&mut self, game_req: GameObjReq) -> Result<()> {
-        if *self.start_epoch_ms().await > Date::now().as_millis() {
-            return Err(worker::Error::RustError("game not started".into()));
-        }
-
         let user_state = self.user_state_stub(game_req.sender)?;
         let body = DecrementReq {
             user_canister: game_req.sender,
@@ -370,7 +343,6 @@ impl DurableObject for GameState {
         Self {
             state,
             env,
-            start_epoch_ms: None,
             pumps: None,
             dumps: None,
             bets: None,
@@ -400,14 +372,6 @@ impl DurableObject for GameState {
                     pumps: bets[0],
                     dumps: bets[1],
                 })
-            })
-            .get_async("/status", |_req, ctx| async move {
-                let this = ctx.data;
-                if *this.start_epoch_ms().await > Date::now().as_millis() {
-                    Response::error("game has not started", 503)
-                } else {
-                    Response::ok("ready")
-                }
             })
             .get_async(
                 "/ws/:game_canister/:token_root/:user_canister",
