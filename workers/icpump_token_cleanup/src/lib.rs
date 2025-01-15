@@ -1,4 +1,4 @@
-use candid::{Decode, Encode, Principal};
+use candid::{Decode, Encode, Principal, CandidType};
 use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
 use worker::*;
@@ -95,9 +95,10 @@ async fn get_user_canister(agent: &Agent, user_principal: Principal) -> Result<O
     }
 }
 
-#[derive(Deserialize)]
-struct DeployedCanisters {
-    cdao_canisters: Vec<Principal>
+#[derive(Deserialize, CandidType)]
+struct DeployedCdaoCanisters {
+    root: Principal,
+    // ... other fields omitted as they're not needed
 }
 
 async fn get_deployed_canisters(agent: &Agent, user_canister: Principal) -> Result<Option<Vec<Principal>>> {
@@ -108,10 +109,15 @@ async fn get_deployed_canisters(agent: &Agent, user_canister: Principal) -> Resu
         .await
         .map_err(|e| Error::from(e.to_string()))?;
 
-    let canisters = Decode!(response.as_slice(), Vec<Principal>)
+    let deployed_canisters = Decode!(response.as_slice(), Vec<DeployedCdaoCanisters>)
         .map_err(|e| Error::from(e.to_string()))?;
     
-    Ok(Some(canisters))
+    // Only collect root principals
+    let root_principals: Vec<Principal> = deployed_canisters.iter()
+        .map(|dc| dc.root)
+        .collect();
+    
+    Ok(Some(root_principals))
 }
 
 async fn find_invalid_tokens(env: &Env) -> Result<Vec<TokenListItem>> {
