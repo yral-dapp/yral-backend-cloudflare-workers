@@ -67,7 +67,6 @@ async fn create_agent() -> Result<Agent> {
 #[derive(Deserialize)]
 struct UserMetadata {
     user_canister_id: Principal,
-    user_name: String,
 }
 
 async fn get_user_canister(agent: &Agent, user_principal: Principal) -> Result<Option<Principal>> {
@@ -112,7 +111,6 @@ async fn get_deployed_canisters(agent: &Agent, user_canister: Principal) -> Resu
     let deployed_canisters = Decode!(response.as_slice(), Vec<DeployedCdaoCanisters>)
         .map_err(|e| Error::from(e.to_string()))?;
     
-    // Only collect root principals
     let root_principals: Vec<Principal> = deployed_canisters.iter()
         .map(|dc| dc.root)
         .collect();
@@ -193,7 +191,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     Router::new()
         .get_async("/", |req: Request, ctx: RouteContext<()>| {
         async move {
-            // Get env from context instead of cloning
+            // Getting env from context instead of cloning
             let env = ctx.env;
             
             // Verify authorization
