@@ -17,8 +17,11 @@ use worker::*;
 pub struct GameState {
     state: State,
     env: Env,
-    pumps: Option<u64>,
-    dumps: Option<u64>,
+    has_tide_shifted: Option<bool>,
+    round_pumps: Option<u64>,
+    round_dumps: Option<u64>,
+    cumulative_pumps: Option<u64>,
+    cumulative_dumps: Option<u64>,
     // Principal: (pumps, dumps)
     bets: Option<HashMap<Principal, [u64; 2]>>,
     backend: GameBackend,
@@ -123,24 +126,116 @@ impl RewardIter {
 }
 
 impl GameState {
-    async fn pumps(&mut self) -> &mut u64 {
-        if self.pumps.is_some() {
-            return self.pumps.as_mut().unwrap();
+    async fn pumps(&mut self) -> u64 {
+        if let Some(p) = self.round_pumps {
+            return p;
         }
 
         let pumps = self.state.storage().get("pumps").await.unwrap_or_default();
-        self.pumps = Some(pumps);
-        self.pumps.as_mut().unwrap()
+        self.round_pumps = Some(pumps);
+        pumps
     }
 
-    async fn dumps(&mut self) -> &mut u64 {
-        if self.dumps.is_some() {
-            return self.dumps.as_mut().unwrap();
+    async fn dumps(&mut self) -> u64 {
+        if let Some(d) = self.round_dumps {
+            return d;
         }
 
         let dumps = self.state.storage().get("dumps").await.unwrap_or_default();
-        self.dumps = Some(dumps);
-        self.dumps.as_mut().unwrap()
+        self.round_dumps = Some(dumps);
+        dumps
+    }
+
+    async fn cumulative_pumps(&mut self) -> u64 {
+        if let Some(tot) = self.cumulative_pumps {
+            return tot;
+        }
+
+        let pumps = self
+            .state
+            .storage()
+            .get("total-pumps")
+            .await
+            .unwrap_or_default();
+        self.cumulative_pumps = Some(pumps);
+        pumps
+    }
+
+    async fn cumulative_dumps(&mut self) -> u64 {
+        if let Some(tot) = self.cumulative_dumps {
+            return tot;
+        }
+
+        let dumps = self
+            .state
+            .storage()
+            .get("total-dumps")
+            .await
+            .unwrap_or_default();
+        self.cumulative_dumps = Some(dumps);
+        dumps
+    }
+
+    async fn increment_pumps_inner(&mut self) -> Result<u64> {
+        let total_pumps = self.cumulative_pumps().await + 1;
+        let pumps = self.pumps().await + 1;
+
+        self.state
+            .storage()
+            .transaction(move |mut txn| async move {
+                txn.put("total-pumps", total_pumps).await?;
+                txn.put("pumps", pumps).await?;
+
+                Ok(())
+            })
+            .await?;
+        self.cumulative_pumps = Some(total_pumps);
+        self.round_pumps = Some(pumps);
+
+        Ok(pumps)
+    }
+
+    async fn increment_dumps_inner(&mut self) -> Result<u64> {
+        let total_dumps = self.cumulative_dumps().await + 1;
+        let dumps = self.dumps().await + 1;
+
+        self.state
+            .storage()
+            .transaction(move |mut txn| async move {
+                txn.put("total-dumps", total_dumps).await?;
+                txn.put("dumps", dumps).await?;
+
+                Ok(())
+            })
+            .await?;
+
+        self.cumulative_dumps = Some(total_dumps);
+        self.round_dumps = Some(dumps);
+
+        Ok(dumps)
+    }
+
+    async fn has_tide_shifted(&mut self) -> bool {
+        if let Some(shifted) = self.has_tide_shifted {
+            return shifted;
+        };
+
+        let shifted = self
+            .state
+            .storage()
+            .get("has_tide_shifted")
+            .await
+            .unwrap_or_default();
+        self.has_tide_shifted = Some(shifted);
+
+        shifted
+    }
+
+    async fn set_tide_shifted(&mut self) -> Result<()> {
+        self.has_tide_shifted = Some(true);
+        self.state.storage().put("has_tide_shifted", true).await?;
+
+        Ok(())
     }
 
     async fn bets(&mut self) -> &mut HashMap<Principal, [u64; 2]> {
@@ -195,17 +290,24 @@ impl GameState {
     }
 
     async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<()> {
+        let total_dumps = self.cumulative_dumps().await;
+        let total_pumps = self.cumulative_pumps().await;
+
         let rewards = RewardIter::new(
-            *self.pumps().await,
-            *self.dumps().await,
+            self.pumps().await,
+            self.dumps().await,
             game_creator,
             token_root,
             std::mem::take(self.bets().await),
         );
-        self.state.storage().delete_all().await?;
 
-        self.pumps = Some(0);
-        self.dumps = Some(0);
+        // cleanup
+        self.state.storage().delete_all().await?;
+        self.state.storage().put("total-dumps", total_dumps).await?;
+        self.state.storage().put("total-pumps", total_pumps).await?;
+
+        self.round_pumps = Some(0);
+        self.round_dumps = Some(0);
 
         let game_res = GameResult {
             direction: rewards.outcome,
@@ -230,11 +332,21 @@ impl GameState {
         Ok(())
     }
 
-    fn tide_shift_check(with: u64, other: u64) -> bool {
-        let prev_delta = with.saturating_sub(other);
-        let new_delta = (with + 1).saturating_sub(other);
+    async fn tide_shift_check(&mut self, with: u64, other: u64) -> Result<bool> {
+        let prev_delta = (with - 1).saturating_sub(other);
+        let new_delta = (with).saturating_sub(other);
 
-        prev_delta < TIDE_SHIFT_DELTA && new_delta >= TIDE_SHIFT_DELTA
+        let shifted = prev_delta < TIDE_SHIFT_DELTA && new_delta >= TIDE_SHIFT_DELTA;
+        if !shifted {
+            return Ok(false);
+        }
+
+        if !self.has_tide_shifted().await {
+            self.set_tide_shifted().await?;
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 
     async fn increment_pumps(
@@ -247,11 +359,11 @@ impl GameState {
         bets[0] += 1;
         let bets = *bets;
 
-        let dumps = *self.dumps().await;
-        let pumps = self.pumps().await;
-        let tide_shifted = Self::tide_shift_check(*pumps, dumps);
-        *pumps += 1;
-        let pumps = *pumps;
+        self.increment_pumps_inner().await?;
+
+        let total_pumps = self.cumulative_pumps().await;
+        let total_dumps = self.cumulative_dumps().await;
+        let tide_shifted = self.tide_shift_check(total_pumps, total_dumps).await?;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
@@ -261,9 +373,9 @@ impl GameState {
             .storage()
             .put(&format!("bets-{sender}"), bets)
             .await?;
-        self.state.storage().put("pumps", pumps).await?;
 
-        self.broadcast_pool_update(pumps + dumps)?;
+        let pool = self.pumps().await + self.dumps().await;
+        self.broadcast_pool_update(pool)?;
 
         Ok(())
     }
@@ -278,11 +390,11 @@ impl GameState {
         bets[1] += 1;
         let bets = *bets;
 
-        let pumps = *self.pumps().await;
-        let dumps = self.dumps().await;
-        let tide_shifted = Self::tide_shift_check(*dumps, pumps);
-        *dumps += 1;
-        let dumps = *dumps;
+        self.increment_dumps_inner().await?;
+
+        let total_pumps = self.cumulative_pumps().await;
+        let total_dumps = self.cumulative_dumps().await;
+        let tide_shifted = self.tide_shift_check(total_dumps, total_pumps).await?;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
@@ -292,9 +404,9 @@ impl GameState {
             .storage()
             .put(&format!("bets-{sender}"), bets)
             .await?;
-        self.state.storage().put("dumps", dumps).await?;
 
-        self.broadcast_pool_update(dumps + pumps)?;
+        let pool = self.pumps().await + self.dumps().await;
+        self.broadcast_pool_update(pool)?;
 
         Ok(())
     }
@@ -343,10 +455,13 @@ impl DurableObject for GameState {
         Self {
             state,
             env,
-            pumps: None,
-            dumps: None,
+            round_pumps: None,
+            round_dumps: None,
             bets: None,
             backend,
+            has_tide_shifted: None,
+            cumulative_pumps: None,
+            cumulative_dumps: None,
         }
     }
 
@@ -396,7 +511,7 @@ impl DurableObject for GameState {
             )
             .get_async("/game_pool", |_req, ctx| async move {
                 let this = ctx.data;
-                let total = *this.dumps().await + *this.pumps().await;
+                let total = this.dumps().await + this.pumps().await;
                 Response::ok(total.to_string())
             })
             .get("/player_count", |_req, ctx| {
