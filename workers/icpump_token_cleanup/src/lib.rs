@@ -58,7 +58,7 @@ async fn fetch_documents(env: &Env) -> Result<Vec<TokenListItem>> {
 
 async fn create_agent() -> Result<Agent> {
     let agent = Agent::builder()
-        .with_url("https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app")
+        .with_url("https://ic0.app")
         .build()
         .map_err(|e| Error::from(e.to_string()))?;
     Ok(agent)
