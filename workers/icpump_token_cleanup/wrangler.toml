@@ -1,0 +1,12 @@
+name = "icpump_token_cleanup"
+main = "build/worker/shim.mjs" 
+compatibility_date = "2024-01-01"
+type = "rust"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+FIREBASE_PROJECT_ID = "your-firebase-project-id"
+FIREBASE_API_KEY = "your-firebase-api-key"
+WORKER_AUTH_TOKEN = "your-worker-auth-token"
