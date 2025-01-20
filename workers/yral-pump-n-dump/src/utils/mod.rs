@@ -57,8 +57,8 @@ pub const fn env_kind() -> RunEnv {
     };
 
     match test_v.as_bytes() {
-        b"MOCK" => RunEnv::Mock,
-        b"LOCAL" => RunEnv::Local,
+        b"mock" | b"MOCK" => RunEnv::Mock,
+        b"local" | b"LOCAL" => RunEnv::Local,
         _ => RunEnv::Remote,
     }
 }
