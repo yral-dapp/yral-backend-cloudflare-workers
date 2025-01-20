@@ -5,6 +5,7 @@ mod game_object;
 mod user_reconciler;
 #[macro_use]
 mod utils;
+mod agent_wrapper;
 
 use backend_impl::{WsBackend, WsBackendImpl};
 use candid::Principal;

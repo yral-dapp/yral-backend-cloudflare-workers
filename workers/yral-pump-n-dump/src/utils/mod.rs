@@ -44,12 +44,23 @@ impl RequestInitBuilder {
     }
 }
 
-pub const fn is_testing() -> bool {
-    let Some(test_v) = option_env!("TEST") else {
-        return false;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RunEnv {
+    Mock,
+    Local,
+    Remote,
+}
+
+pub const fn env_kind() -> RunEnv {
+    let Some(test_v) = option_env!("ENV") else {
+        return RunEnv::Remote;
     };
 
-    matches!(test_v.as_bytes(), b"1")
+    match test_v.as_bytes() {
+        b"MOCK" => RunEnv::Mock,
+        b"LOCAL" => RunEnv::Local,
+        _ => RunEnv::Remote,
+    }
 }
 
 macro_rules! parse_principal {

@@ -1,27 +1,38 @@
 use candid::Principal;
-use ic_agent::{identity::BasicIdentity, Agent};
+use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
+use k256::SecretKey;
 use worker::{Env, Result};
 use yral_canisters_client::individual_user_template::IndividualUserTemplate;
 use yral_metadata_client::MetadataClient;
 
-use crate::consts::AGENT_URL;
+use crate::{
+    agent_wrapper::AgentWrapper,
+    consts::ADMIN_LOCAL_SECP_SK,
+    utils::{env_kind, RunEnv},
+};
 
 pub struct AdminCans {
-    agent: Agent,
+    agent: AgentWrapper,
     metadata: MetadataClient<false>,
 }
 
 impl AdminCans {
     pub fn new(env: &Env) -> Result<Self> {
-        let admin_pem = env.secret("BACKEND_ADMIN_IDENTITY")?.to_string();
-        let id = BasicIdentity::from_pem(admin_pem.as_bytes())
-            .map_err(|e| worker::Error::RustError(e.to_string()))?;
-
-        let agent = Agent::builder()
-            .with_url(AGENT_URL)
-            .with_identity(id)
-            .build()
-            .map_err(|e| worker::Error::RustError(e.to_string()))?;
+        let agent = match env_kind() {
+            RunEnv::Local => {
+                let id = Secp256k1Identity::from_private_key(
+                    SecretKey::from_bytes(&ADMIN_LOCAL_SECP_SK.into()).unwrap(),
+                );
+                AgentWrapper::new(id)
+            }
+            RunEnv::Remote => {
+                let admin_pem = env.secret("BACKEND_ADMIN_IDENTITY")?.to_string();
+                let id = BasicIdentity::from_pem(admin_pem.as_bytes())
+                    .map_err(|e| worker::Error::RustError(e.to_string()))?;
+                AgentWrapper::new(id)
+            }
+            RunEnv::Mock => panic!("trying to use ic-agent in mock env"),
+        };
 
         Ok(Self {
             agent,
@@ -45,7 +56,7 @@ impl AdminCans {
         // The lines below harden the security
         // as the worker makes multiple calls on behalf of the user
         // we need to ensure the user really owns this canister
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         let profile = user
             .get_profile_details_v_2()
             .await
@@ -57,7 +68,7 @@ impl AdminCans {
         Ok(Some(user_canister))
     }
 
-    pub fn individual_user(&self, user_canister: Principal) -> IndividualUserTemplate<'_> {
-        IndividualUserTemplate(user_canister, &self.agent)
+    pub async fn individual_user(&self, user_canister: Principal) -> IndividualUserTemplate<'_> {
+        IndividualUserTemplate(user_canister, self.agent.get().await)
     }
 }

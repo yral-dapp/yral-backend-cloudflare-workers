@@ -7,7 +7,10 @@ use mock::{MockGameBackend, MockUserState, MockWsBackend};
 use worker::{Env, Result};
 use yral_canisters_client::individual_user_template::PumpNDumpStateDiff;
 
-use crate::{admin_cans::AdminCans, utils::is_testing};
+use crate::{
+    admin_cans::AdminCans,
+    utils::{env_kind, RunEnv},
+};
 
 #[enum_dispatch]
 pub(crate) trait GameBackendImpl {
@@ -58,7 +61,7 @@ pub enum GameBackend {
 
 impl GameBackend {
     pub fn new(env: &Env) -> Result<Self> {
-        if is_testing() {
+        if env_kind() == RunEnv::Mock {
             Ok(GameBackend::Mock(MockGameBackend))
         } else {
             AdminCans::new(env).map(Self::Real)
@@ -74,7 +77,7 @@ pub enum StateBackend {
 
 impl StateBackend {
     pub fn new(env: &Env) -> Result<Self> {
-        if is_testing() {
+        if env_kind() == RunEnv::Mock {
             Ok(StateBackend::Mock(MockUserState::default()))
         } else {
             AdminCans::new(env).map(Self::Real)
@@ -90,7 +93,7 @@ pub enum WsBackend {
 
 impl WsBackend {
     pub fn new(env: &Env) -> Result<Self> {
-        if is_testing() {
+        if env_kind() == RunEnv::Mock {
             Ok(WsBackend::Mock(MockWsBackend))
         } else {
             AdminCans::new(env).map(Self::Real)

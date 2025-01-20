@@ -26,7 +26,7 @@ impl GameBackendImpl for AdminCans {
         token_root: Principal,
         amount: Nat,
     ) -> Result<()> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         let res = user
             .add_dollr_to_liquidity_pool(token_root, amount)
             .await
@@ -38,12 +38,12 @@ impl GameBackendImpl for AdminCans {
 
 impl UserStateBackendImpl for AdminCans {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         user.gdollr_balance().await.map_err(to_worker_error)
     }
 
     async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         user.withdrawable_balance().await.map_err(to_worker_error)
     }
 
@@ -52,7 +52,7 @@ impl UserStateBackendImpl for AdminCans {
         user_canister: Principal,
         completed_games: Vec<PumpNDumpStateDiff>,
     ) -> Result<()> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         let res = user
             .reconcile_user_state(completed_games)
             .await
@@ -62,14 +62,14 @@ impl UserStateBackendImpl for AdminCans {
     }
 
     async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<()> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
         let res = user.redeem_gdollr(amount).await.map_err(to_worker_error)?;
 
         from_can_res(res)
     }
 
     async fn game_count(&self, user_canister: Principal) -> Result<u64> {
-        let user = self.individual_user(user_canister);
+        let user = self.individual_user(user_canister).await;
 
         user.played_game_count().await.map_err(to_worker_error)
     }
@@ -88,7 +88,7 @@ impl WsBackendImpl for AdminCans {
         token_root: Principal,
         token_creator: Principal,
     ) -> Result<bool> {
-        let user = self.individual_user(token_creator);
+        let user = self.individual_user(token_creator).await;
         let tokens = user
             .deployed_cdao_canisters()
             .await
