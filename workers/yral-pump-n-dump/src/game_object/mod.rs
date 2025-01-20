@@ -306,7 +306,6 @@ impl GameState {
         self.round_pumps = Some(0);
         self.round_dumps = Some(0);
 
-
         self.state.storage().put("total-dumps", total_dumps).await?;
         self.state.storage().put("total-pumps", total_pumps).await?;
 

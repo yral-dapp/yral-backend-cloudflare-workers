@@ -249,6 +249,38 @@ impl UserEphemeralState {
         Ok(self.effective_balance_inner(on_chain_balance).await)
     }
 
+    async fn effective_withdrawable_balance_inner(
+        &mut self,
+        user_canister: Principal,
+        on_chain_withdrawable_balance: Nat,
+    ) -> Result<Nat> {
+        let mut effective_balance = on_chain_withdrawable_balance;
+
+        let off_chain_delta = self.off_chain_balance_delta().await.clone();
+        if off_chain_delta >= 0 {
+            effective_balance.0 += off_chain_delta.0.to_biguint().clone().unwrap();
+            return Ok(effective_balance);
+        }
+
+        let game_only_oc =
+            self.backend.gdollr_balance(user_canister).await? - effective_balance.clone();
+        let to_deduct = (-off_chain_delta.0).to_biguint().unwrap();
+        if to_deduct <= game_only_oc.0 {
+            return Ok(effective_balance);
+        }
+
+        let to_deduct_withdrawable = to_deduct - game_only_oc.0;
+        effective_balance.0 -= to_deduct_withdrawable;
+
+        Ok(effective_balance)
+    }
+
+    async fn effective_withdrawable_balance(&mut self, user_canister: Principal) -> Result<Nat> {
+        let withdrawable_oc = self.backend.withdrawable_balance(user_canister).await?;
+        self.effective_withdrawable_balance_inner(user_canister, withdrawable_oc)
+            .await
+    }
+
     async fn decrement(&mut self, pending_game_root: Principal) -> Result<()> {
         *self.off_chain_balance_delta().await -= GDOLLR_TO_E8S;
         self.state
@@ -356,13 +388,15 @@ impl UserEphemeralState {
     }
 
     async fn claim_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
-        let on_chain_bal = self.backend.gdollr_balance(user_canister).await?;
+        let on_chain_bal = self.backend.withdrawable_balance(user_canister).await?;
         if on_chain_bal >= amount {
             self.backend.redeem_gdollr(user_canister, amount).await?;
             return Response::ok("done");
         }
 
-        let effective_bal = self.effective_balance_inner(on_chain_bal).await;
+        let effective_bal = self
+            .effective_withdrawable_balance_inner(user_canister, on_chain_bal)
+            .await?;
         if amount > effective_bal {
             return Response::error("not enough balance", 400);
         }
@@ -411,6 +445,17 @@ impl DurableObject for UserEphemeralState {
                 let this = ctx.data;
                 this.set_user_canister(user_canister).await?;
                 let bal = this.effective_balance(user_canister).await?;
+                Response::ok(bal.to_string())
+            })
+            .get_async("/withdrawable_balance/:user_canister", |_req, ctx| async {
+                let user_canister_raw = ctx.param("user_canister").unwrap();
+                let Ok(user_canister) = Principal::from_text(user_canister_raw) else {
+                    return Response::error("Invalid user_canister", 400);
+                };
+
+                let this = ctx.data;
+                this.set_user_canister(user_canister).await?;
+                let bal = this.effective_withdrawable_balance(user_canister).await?;
                 Response::ok(bal.to_string())
             })
             .post_async("/decrement", |mut req, ctx| async move {

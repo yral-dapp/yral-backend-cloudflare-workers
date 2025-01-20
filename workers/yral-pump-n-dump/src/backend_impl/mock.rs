@@ -4,6 +4,8 @@ use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::individual_user_template::{ParticipatedGameInfo, PumpNDumpStateDiff};
 
+use crate::consts::GDOLLR_TO_E8S;
+
 use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
 
 pub struct MockGameBackend;
@@ -21,17 +23,25 @@ impl GameBackendImpl for MockGameBackend {
 
 #[derive(Default)]
 pub struct MockUserState {
-    gdollr_balances: HashMap<Principal, Nat>,
+    gdollr_balances: HashMap<Principal, (Nat, Nat)>,
     games: HashMap<Principal, Vec<ParticipatedGameInfo>>,
 }
 
-const FAKE_BALANCE: u64 = 10 * (1e8 as u64);
+const FAKE_BALANCE: u64 = 100 * GDOLLR_TO_E8S;
 
 impl UserStateBackendImpl for MockUserState {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat> {
         let bal = self.gdollr_balances.get(&user_canister).cloned();
 
-        Ok(bal.unwrap_or_else(|| FAKE_BALANCE.into()))
+        Ok(bal
+            .map(|(game_only, withdrawable)| game_only + withdrawable)
+            .unwrap_or_else(|| FAKE_BALANCE.into()))
+    }
+
+    async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat> {
+        let bal = self.gdollr_balances.get(&user_canister);
+
+        Ok(bal.map(|b| b.1.clone()).unwrap_or_default())
     }
 
     async fn reconcile_user_state(
@@ -55,24 +65,32 @@ impl UserStateBackendImpl for MockUserState {
                 }
             }
         }
+        to_deduct *= GDOLLR_TO_E8S;
 
-        let bal = self
+        let (game_only_bal, withdrawable_bal) = self
             .gdollr_balances
             .entry(user_canister)
-            .or_insert_with(|| FAKE_BALANCE.into());
-        *bal += to_add;
-        *bal -= to_deduct;
+            .or_insert_with(|| (FAKE_BALANCE.into(), 0u32.into()));
+        *withdrawable_bal += to_add;
+        if &to_deduct <= game_only_bal {
+            *game_only_bal -= to_deduct;
+        } else {
+            let to_deduct_from_withdrawable = to_deduct - game_only_bal.clone();
+            *game_only_bal = 0u32.into();
+            assert!(&to_deduct_from_withdrawable <= withdrawable_bal);
+            *withdrawable_bal -= to_deduct_from_withdrawable;
+        }
 
         Ok(())
     }
 
     async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<()> {
-        let bal = self
+        let (_, withdrawable_bal) = self
             .gdollr_balances
-            .entry(user_canister)
-            .or_insert_with(|| FAKE_BALANCE.into());
+            .get_mut(&user_canister)
+            .expect("trying to redeem gdollr without enough balance");
 
-        *bal -= amount;
+        *withdrawable_bal -= amount;
 
         Ok(())
     }

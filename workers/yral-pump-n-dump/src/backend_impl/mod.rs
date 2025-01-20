@@ -23,6 +23,8 @@ pub(crate) trait GameBackendImpl {
 pub(crate) trait UserStateBackendImpl {
     async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat>;
 
+    async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat>;
+
     async fn reconcile_user_state(
         &mut self,
         user_canister: Principal,

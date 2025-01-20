@@ -77,6 +77,20 @@ async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
     Ok(res)
 }
 
+async fn user_withdrawable_balance(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister = parse_principal!(ctx, "user_canister");
+
+    let bal_stub = user_state_stub(&ctx, user_canister)?;
+
+    let res = bal_stub
+        .fetch_with_str(&format!(
+            "http://fake_url.com/withdrawable_balance/{user_canister}"
+        ))
+        .await?;
+
+    Ok(res)
+}
+
 async fn user_game_count(ctx: RouteContext<()>) -> Result<Response> {
     let user_canister = parse_principal!(ctx, "user_canister");
 
@@ -194,6 +208,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let res = router
         .post_async("/claim_gdollr", claim_gdollr)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
+        .get_async("/withdrawable_balance/:user_canister", |_req, ctx| {
+            user_withdrawable_balance(ctx)
+        })
         .get_async("/game_count/:user_canister", |_req, ctx| {
             user_game_count(ctx)
         })

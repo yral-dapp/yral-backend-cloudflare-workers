@@ -42,6 +42,11 @@ impl UserStateBackendImpl for AdminCans {
         user.gdollr_balance().await.map_err(to_worker_error)
     }
 
+    async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat> {
+        let user = self.individual_user(user_canister);
+        user.withdrawable_balance().await.map_err(to_worker_error)
+    }
+
     async fn reconcile_user_state(
         &mut self,
         user_canister: Principal,

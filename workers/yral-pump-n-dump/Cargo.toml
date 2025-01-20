@@ -34,7 +34,7 @@ yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev
 yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = ["ic-git", "wasm-bindgen"] }
 #yral-canisters-client = { path = "../../../yral-common/canisters-client", features = ["backend"] }
 #pump-n-dump-common = { path = "../../../yral-common/pump-n-dump-common", package = "yral-pump-n-dump-common" }
-yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "7acbb8c78122316f5c098009b709ebe2b4327eb9", features = ["backend"] }
-pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "7acbb8c78122316f5c098009b709ebe2b4327eb9", package = "yral-pump-n-dump-common" }
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "936d6d95a97390fa74ed14111427c3af58f9d055", features = ["backend"] }
+pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "936d6d95a97390fa74ed14111427c3af58f9d055", package = "yral-pump-n-dump-common" }
 
 
