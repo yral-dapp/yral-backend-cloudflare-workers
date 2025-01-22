@@ -144,23 +144,24 @@ impl UserEphemeralState {
         Some(user_canister)
     }
 
-    async fn queue_settle_balance_inner(&self, new_time: Option<i64>) -> Result<()> {
-        let new_time = new_time
-            .unwrap_or_else(|| Date::now().as_millis() as i64 + USER_STATE_RECONCILE_TIME_MS);
-        self.state.storage().set_alarm(new_time).await?;
+    async fn queue_settle_balance_inner(&self) -> Result<()> {
+        self.state
+            .storage()
+            .set_alarm(USER_STATE_RECONCILE_TIME_MS)
+            .await?;
 
         Ok(())
     }
 
     async fn queue_settle_balance(&self) -> Result<()> {
         let Some(alarm) = self.state.storage().get_alarm().await? else {
-            return self.queue_settle_balance_inner(None).await;
+            return self.queue_settle_balance_inner().await;
         };
         let new_time = Date::now().as_millis() as i64 + USER_STATE_RECONCILE_TIME_MS;
         if alarm <= new_time {
             return Ok(());
         }
-        self.queue_settle_balance_inner(Some(new_time)).await?;
+        self.queue_settle_balance_inner().await?;
 
         Ok(())
     }
@@ -511,7 +512,7 @@ impl DurableObject for UserEphemeralState {
             return Response::ok("not ready");
         };
 
-        if self.off_chain_balance_delta().await == &0u32 {
+        if self.state_diffs().await.is_empty() {
             console_warn!("alarm set without any updates?!");
             return Response::ok("not required");
         }
