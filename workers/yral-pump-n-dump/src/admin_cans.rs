@@ -7,7 +7,7 @@ use yral_metadata_client::MetadataClient;
 
 use crate::{
     agent_wrapper::AgentWrapper,
-    consts::ADMIN_LOCAL_SECP_SK,
+    consts::{ADMIN_LOCAL_SECP_SK, LOCAL_METADATA_API_BASE},
     utils::{env_kind, RunEnv},
 };
 
@@ -18,26 +18,28 @@ pub struct AdminCans {
 
 impl AdminCans {
     pub fn new(env: &Env) -> Result<Self> {
-        let agent = match env_kind() {
+        let agent;
+        let metadata;
+
+        match env_kind() {
             RunEnv::Local => {
                 let id = Secp256k1Identity::from_private_key(
                     SecretKey::from_bytes(&ADMIN_LOCAL_SECP_SK.into()).unwrap(),
                 );
-                AgentWrapper::new(id)
+                agent = AgentWrapper::new(id);
+                metadata = MetadataClient::with_base_url(LOCAL_METADATA_API_BASE.parse().unwrap());
             }
             RunEnv::Remote => {
                 let admin_pem = env.secret("BACKEND_ADMIN_IDENTITY")?.to_string();
                 let id = BasicIdentity::from_pem(admin_pem.as_bytes())
                     .map_err(|e| worker::Error::RustError(e.to_string()))?;
-                AgentWrapper::new(id)
+                agent = AgentWrapper::new(id);
+                metadata = MetadataClient::default();
             }
             RunEnv::Mock => panic!("trying to use ic-agent in mock env"),
         };
 
-        Ok(Self {
-            agent,
-            metadata: MetadataClient::default(),
-        })
+        Ok(Self { agent, metadata })
     }
 
     pub async fn user_principal_to_user_canister(
