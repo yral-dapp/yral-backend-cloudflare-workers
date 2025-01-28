@@ -5,8 +5,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "workers/yral-pump-n-dump/**"
+      - rupansh/p-and-d
 
 jobs:
   deploy-worker:
