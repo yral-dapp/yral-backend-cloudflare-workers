@@ -450,7 +450,10 @@ impl GameState {
 #[durable_object]
 impl DurableObject for GameState {
     fn new(state: State, env: Env) -> Self {
-        let backend = GameBackend::new(&env).unwrap();
+        let backend = match GameBackend::new(&env) {
+            Ok(b) => b,
+            Err(e) => panic!("Failed to create backend: {e}"),
+        };
 
         Self {
             state,
