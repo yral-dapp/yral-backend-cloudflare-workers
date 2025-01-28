@@ -1,0 +1,26 @@
+name: Deploy Pump N Dump Game Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "workers/yral-pump-n-dump/**"
+
+jobs:
+  deploy-worker:
+    name: Deploy yral-pump-n-dump
+    runs-on: ubuntu-latest
+    steps:
+        - uses: actions/checkout@v4
+        - uses: cloudflare/wrangler-action@v3
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+            workingDirectory: workers/yral-pump-n-dump
+            environment: production
+            secrets: |
+              BACKEND_ADMIN_KEY
+          env:
+            BACKEND_ADMIN_KEY: ${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}
+            ENV: REMOTE
