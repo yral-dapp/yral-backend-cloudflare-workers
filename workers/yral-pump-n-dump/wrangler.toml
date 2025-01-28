@@ -13,4 +13,4 @@ tag = "v0.1"
 new_classes = ["UserEphemeralState", "GameState"]
 
 [build]
-command = "cargo install -q worker-build && worker-build --profiling"
+command = "cargo install -q worker-build && worker-build --dev"
