@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - rupansh/p-and-d
+    paths:
+      - "workers/yral-pump-n-dump/**"
 
 jobs:
   deploy-worker:
