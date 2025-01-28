@@ -30,7 +30,7 @@ impl AdminCans {
                 metadata = MetadataClient::with_base_url(LOCAL_METADATA_API_BASE.parse().unwrap());
             }
             RunEnv::Remote => {
-                let admin_pem = env.secret("BACKEND_ADMIN_IDENTITY")?.to_string();
+                let admin_pem = env.secret("BACKEND_ADMIN_KEY")?.to_string();
                 let id = BasicIdentity::from_pem(admin_pem.as_bytes())
                     .map_err(|e| worker::Error::RustError(e.to_string()))?;
                 agent = AgentWrapper::new(id);
