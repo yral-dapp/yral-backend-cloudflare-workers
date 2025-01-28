@@ -31,7 +31,7 @@ impl AdminCans {
             }
             RunEnv::Remote => {
                 let admin_pem = env.secret("BACKEND_ADMIN_KEY")?.to_string();
-                let id = BasicIdentity::from_pem(admin_pem.as_bytes())
+                let id = Secp256k1Identity::from_pem(admin_pem.as_bytes())
                     .map_err(|e| worker::Error::RustError(e.to_string()))?;
                 agent = AgentWrapper::new(id);
                 metadata = MetadataClient::default();
