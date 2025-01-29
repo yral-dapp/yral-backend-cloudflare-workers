@@ -1,5 +1,5 @@
 use candid::Principal;
-use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
+use ic_agent::identity::Secp256k1Identity;
 use k256::SecretKey;
 use worker::{Env, Result};
 use yral_canisters_client::individual_user_template::IndividualUserTemplate;
@@ -11,6 +11,7 @@ use crate::{
     utils::{env_kind, RunEnv},
 };
 
+#[derive(Clone)]
 pub struct AdminCans {
     agent: AgentWrapper,
     metadata: MetadataClient<false>,

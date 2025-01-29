@@ -3,7 +3,7 @@ mod real;
 
 use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
-use mock::{MockGameBackend, MockUserState, MockWsBackend};
+use mock::{NoOpGameBackend, NoOpUserState, MockWsBackend};
 use worker::{Env, Result};
 use yral_canisters_client::individual_user_template::PumpNDumpStateDiff;
 
@@ -15,7 +15,7 @@ use crate::{
 #[enum_dispatch]
 pub(crate) trait GameBackendImpl {
     async fn add_dollr_to_liquidity_pool(
-        &mut self,
+        &self,
         user_canister: Principal,
         token_root: Principal,
         amount: Nat,
@@ -29,12 +29,12 @@ pub(crate) trait UserStateBackendImpl {
     async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat>;
 
     async fn reconcile_user_state(
-        &mut self,
+        &self,
         user_canister: Principal,
         completed_games: Vec<PumpNDumpStateDiff>,
     ) -> Result<()>;
 
-    async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<()>;
+    async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<()>;
 
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 }
@@ -53,38 +53,41 @@ pub(crate) trait WsBackendImpl {
     ) -> Result<bool>;
 }
 
+#[derive(Clone)]
 #[enum_dispatch(GameBackendImpl)]
 pub enum GameBackend {
     Real(AdminCans),
-    Mock(MockGameBackend),
+    Mock(NoOpGameBackend),
 }
 
 impl GameBackend {
     pub fn new(env: &Env) -> Result<Self> {
         if env_kind() == RunEnv::Mock {
-            Ok(GameBackend::Mock(MockGameBackend))
+            Ok(GameBackend::Mock(NoOpGameBackend))
         } else {
             AdminCans::new(env).map(Self::Real)
         }
     }
 }
 
+#[derive(Clone)]
 #[enum_dispatch(UserStateBackendImpl)]
 pub enum StateBackend {
     Real(AdminCans),
-    Mock(MockUserState),
+    Mock(NoOpUserState),
 }
 
 impl StateBackend {
     pub fn new(env: &Env) -> Result<Self> {
         if env_kind() == RunEnv::Mock {
-            Ok(StateBackend::Mock(MockUserState::default()))
+            Ok(StateBackend::Mock(NoOpUserState))
         } else {
             AdminCans::new(env).map(Self::Real)
         }
     }
 }
 
+#[derive(Clone)]
 #[enum_dispatch(WsBackendImpl)]
 pub enum WsBackend {
     Real(AdminCans),

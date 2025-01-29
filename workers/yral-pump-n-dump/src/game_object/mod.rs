@@ -1,6 +1,6 @@
 mod ws;
 
-use std::collections::{hash_map, HashMap};
+use std::{collections::{hash_map, HashMap}, future::Future};
 
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
@@ -10,7 +10,8 @@ use crate::{
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
-use pump_n_dump_common::{rest::UserBetsResponse, ws::GameResult, GameDirection};
+use pump_n_dump_common::{rest::UserBetsResponse, ws::{GameResult, WsResp}, GameDirection};
+use wasm_bindgen_futures::spawn_local;
 use worker::*;
 
 #[durable_object]
@@ -24,6 +25,7 @@ pub struct GameState {
     cumulative_dumps: Option<u64>,
     // Principal: (pumps, dumps)
     bets: Option<HashMap<Principal, [u64; 2]>>,
+    round: Option<u64>,
     backend: GameBackend,
 }
 
@@ -32,6 +34,7 @@ struct GameObjReq {
     pub direction: GameDirection,
     pub creator: Principal,
     pub token_root: Principal,
+    pub round: u64,
 }
 
 struct RewardIter {
@@ -263,6 +266,30 @@ impl GameState {
         self.bets.as_mut().unwrap()
     }
 
+    pub async fn round(&mut self) -> u64 {
+        if let Some(round) = self.round {
+            return round;
+        };
+
+        let round = self.state
+            .storage()
+            .get("current-round")
+            .await
+            .unwrap_or_default();
+
+        self.round = Some(round);
+        round
+    }
+
+    /// advance the game round, returning the new round
+    pub async fn advance_round(&mut self) -> Result<u64> {
+        let new_round = self.round().await + 1;
+        self.round = Some(new_round);
+        self.state.storage().put("current-round", new_round).await?;
+
+        Ok(new_round)
+    }
+
     fn user_state_stub(&self, user: Principal) -> Result<Stub> {
         let user_state = self.env.durable_object("USER_EPHEMERAL_STATE")?;
         let user_state_obj = user_state.id_from_name(&user.to_string())?;
@@ -270,7 +297,7 @@ impl GameState {
         user_state_obj.get_stub()
     }
 
-    async fn send_reward_to_user(&self, user: Principal, state_diff: StateDiff) -> Result<()> {
+    fn send_reward_to_user(&self, user: Principal, state_diff: StateDiff) -> Result<impl Future<Output = Result<()>> + 'static> {
         let body = AddRewardReq {
             state_diff,
             user_canister: user,
@@ -282,24 +309,30 @@ impl GameState {
                 .json(&body)?
                 .build(),
         )?;
-
         let user_state = self.user_state_stub(user)?;
-        user_state.fetch_with_request(req).await?;
-
-        Ok(())
+ 
+        Ok(async move {
+            user_state.fetch_with_request(req).await?;
+            Ok(())
+        })
     }
 
-    async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<()> {
+    async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<Vec<WsResp>> {
         let total_dumps = self.cumulative_dumps().await;
         let total_pumps = self.cumulative_pumps().await;
+        let round = self.advance_round().await?;
 
+        let pumps = self.pumps().await;
+        let dumps = self.dumps().await;
         let rewards = RewardIter::new(
-            self.pumps().await,
-            self.dumps().await,
+            pumps,
+            dumps,
             game_creator,
             token_root,
             std::mem::take(self.bets().await),
         );
+
+        let winning_pool = pumps + dumps; 
 
         // cleanup
         self.state.storage().delete_all().await?;
@@ -308,28 +341,43 @@ impl GameState {
 
         self.state.storage().put("total-dumps", total_dumps).await?;
         self.state.storage().put("total-pumps", total_pumps).await?;
+        self.state.storage().put("current-round", round).await?;
 
         let game_res = GameResult {
             direction: rewards.outcome,
             reward_pool: rewards.reward_pool.clone(),
             bet_count: rewards.bet_cnt,
+            new_round: round,
         };
 
         let lp_reward = rewards.liquidity_pool.clone();
         let mut reward_futs = rewards
             .map(|(winner, reward)| self.send_reward_to_user(winner, reward))
-            .collect::<FuturesUnordered<_>>();
+            .collect::<Result<FuturesUnordered<_>>>()?;
 
-        while reward_futs.next().await.is_some() {}
-        std::mem::drop(reward_futs);
+        spawn_local(async move {
+            while let Some(res) = reward_futs.next().await {
+                if let Err(e) = res {
+                    console_warn!("failed to reward user: {e}")
+                }
+            };
+        });
 
-        self.backend
-            .add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward)
-            .await?;
+        let backend = self.backend.clone();
+        spawn_local(async move {
+            if let Err(e) = backend.add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward).await {
+                console_warn!("failed to add reward to liquidity pool: {e}");
+            };
+        });
 
-        self.broadcast_game_result(game_res)?;
-
-        Ok(())
+        Ok(vec![
+            WsResp::BetSuccesful { round: round - 1 },
+            WsResp::WinningPoolEvent {
+                new_pool: winning_pool,
+                round: round - 1,
+            },
+            WsResp::GameResultEvent(game_res),
+        ])
     }
 
     async fn tide_shift_check(&mut self, with: u64, other: u64) -> Result<bool> {
@@ -354,7 +402,7 @@ impl GameState {
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
-    ) -> Result<()> {
+    ) -> Result<Vec<WsResp>> {
         let bets = self.bets().await.entry(sender).or_insert([0, 0]);
         bets[0] += 1;
         let bets = *bets;
@@ -374,10 +422,16 @@ impl GameState {
             .put(&format!("bets-{sender}"), bets)
             .await?;
 
+        let round = self.round().await;
         let pool = self.pumps().await + self.dumps().await;
-        self.broadcast_pool_update(pool)?;
 
-        Ok(())
+        Ok(vec![
+            WsResp::BetSuccesful { round },
+            WsResp::WinningPoolEvent {
+                round,
+                new_pool: pool,
+            },
+        ])
     }
 
     async fn increment_dumps(
@@ -385,7 +439,7 @@ impl GameState {
         game_creator: Principal,
         token_root: Principal,
         sender: Principal,
-    ) -> Result<()> {
+    ) -> Result<Vec<WsResp>> {
         let bets = self.bets().await.entry(sender).or_insert([0, 0]);
         bets[1] += 1;
         let bets = *bets;
@@ -405,13 +459,20 @@ impl GameState {
             .put(&format!("bets-{sender}"), bets)
             .await?;
 
+        let round = self.round().await;
         let pool = self.pumps().await + self.dumps().await;
-        self.broadcast_pool_update(pool)?;
 
-        Ok(())
+        Ok(vec![
+            WsResp::BetSuccesful { round },
+            WsResp::WinningPoolEvent { new_pool: pool, round, }
+        ])
     }
 
-    async fn game_request(&mut self, game_req: GameObjReq) -> Result<()> {
+    async fn game_request(&mut self, game_req: GameObjReq) -> Result<Vec<WsResp>> {
+        if self.round().await != game_req.round {
+            return Err(Error::RustError("round mismatch".into()))
+        }
+
         let user_state = self.user_state_stub(game_req.sender)?;
         let body = DecrementReq {
             user_canister: game_req.sender,
@@ -435,15 +496,13 @@ impl GameState {
         match game_req.direction {
             GameDirection::Pump => {
                 self.increment_pumps(game_req.creator, game_req.token_root, game_req.sender)
-                    .await?
+                    .await
             }
             GameDirection::Dump => {
                 self.increment_dumps(game_req.creator, game_req.token_root, game_req.sender)
-                    .await?
+                    .await
             }
-        };
-
-        Ok(())
+        }
     }
 }
 
@@ -467,6 +526,7 @@ impl DurableObject for GameState {
             has_tide_shifted: None,
             cumulative_pumps: None,
             cumulative_dumps: None,
+            round: None,
         }
     }
 
@@ -509,7 +569,8 @@ impl DurableObject for GameState {
 
                     let pair = WebSocketPair::new()?;
                     ctx.data
-                        .handle_ws(pair.server, game_canister, token_root, user_canister)?;
+                        .handle_ws(pair.server, game_canister, token_root, user_canister)
+                        .await?;
 
                     Response::from_websocket(pair.client)
                 },
@@ -533,8 +594,7 @@ impl DurableObject for GameState {
         ws: WebSocket,
         message: WebSocketIncomingMessage,
     ) -> Result<()> {
-        let msg = self.handle_ws_message(&ws, message).await?;
-        ws.send(&msg)?;
+        self.handle_ws_message(&ws, message).await?;
 
         Ok(())
     }

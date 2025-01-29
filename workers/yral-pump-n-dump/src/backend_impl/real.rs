@@ -21,7 +21,7 @@ fn from_can_res(r: Result1) -> worker::Result<()> {
 
 impl GameBackendImpl for AdminCans {
     async fn add_dollr_to_liquidity_pool(
-        &mut self,
+        &self,
         user_canister: Principal,
         token_root: Principal,
         amount: Nat,
@@ -48,7 +48,7 @@ impl UserStateBackendImpl for AdminCans {
     }
 
     async fn reconcile_user_state(
-        &mut self,
+        &self,
         user_canister: Principal,
         completed_games: Vec<PumpNDumpStateDiff>,
     ) -> Result<()> {
@@ -61,7 +61,7 @@ impl UserStateBackendImpl for AdminCans {
         from_can_res(res)
     }
 
-    async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<()> {
+    async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<()> {
         let user = self.individual_user(user_canister).await;
         let res = user.redeem_gdollr(amount).await.map_err(to_worker_error)?;
 
