@@ -413,8 +413,6 @@ impl GameState {
         let total_dumps = self.cumulative_dumps().await;
         let tide_shifted = self.tide_shift_check(total_pumps, total_dumps).await?;
 
-        console_log!("total pumps: {total_pumps}, total dumps: {total_dumps}, tide_shifted: {tide_shifted}");
-
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
         }
