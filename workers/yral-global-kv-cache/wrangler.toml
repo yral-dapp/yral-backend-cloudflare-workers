@@ -1,0 +1,17 @@
+name = "sample-worker"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+ENVIRONMENT = "production"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[[kv_namespaces]]
+binding = "yral-backend-application-cache"
+id = "26ce4ddfaa0d4b3194810a690a0f5562"
+preview_id = "26ce4ddfaa0d4b3194810a690a0f5562"

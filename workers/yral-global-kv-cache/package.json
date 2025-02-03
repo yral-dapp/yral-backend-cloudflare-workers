@@ -1,0 +1,10 @@
+{
+    "name": "yral-global-kv-cache",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+      "dev": "wrangler dev --local",
+      "dev:remote": "wrangler dev --remote",
+      "deploy": "wrangler deploy"
+    }
+  }
