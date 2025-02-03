@@ -2,7 +2,7 @@ use std::error::Error;
 
 use candid::{Nat, Principal};
 use worker::Result;
-use yral_canisters_client::individual_user_template::{PumpNDumpStateDiff, Result1};
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1};
 
 use crate::admin_cans::AdminCans;
 
@@ -37,14 +37,9 @@ impl GameBackendImpl for AdminCans {
 }
 
 impl UserStateBackendImpl for AdminCans {
-    async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat> {
+    async fn game_balance(&self, user_canister: Principal) -> Result<BalanceInfo> {
         let user = self.individual_user(user_canister).await;
-        user.gdollr_balance().await.map_err(to_worker_error)
-    }
-
-    async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat> {
-        let user = self.individual_user(user_canister).await;
-        user.withdrawable_balance().await.map_err(to_worker_error)
+        user.pd_balance_info().await.map_err(to_worker_error)
     }
 
     async fn reconcile_user_state(

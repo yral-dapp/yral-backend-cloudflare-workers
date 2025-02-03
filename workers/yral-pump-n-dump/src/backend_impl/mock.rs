@@ -1,6 +1,6 @@
 use candid::{Nat, Principal};
 use worker::Result;
-use yral_canisters_client::individual_user_template::PumpNDumpStateDiff;
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::consts::GDOLLR_TO_E8S;
 
@@ -26,12 +26,12 @@ pub struct NoOpUserState;
 const FAKE_BALANCE: u64 = 100 * GDOLLR_TO_E8S;
 
 impl UserStateBackendImpl for NoOpUserState {
-    async fn gdollr_balance(&self, _user_principal: Principal) -> Result<Nat> {
-        Ok(FAKE_BALANCE.into())
-    }
-
-    async fn withdrawable_balance(&self, _user_canister: Principal) -> Result<Nat> {
-        Ok(FAKE_BALANCE.into())
+    async fn game_balance(&self, _user_canister: Principal) -> Result<BalanceInfo> {
+        Ok(BalanceInfo {
+            net_airdrop_reward: 0u32.into(),
+            balance: FAKE_BALANCE.into(),
+            withdrawable: FAKE_BALANCE.into(),
+        })
     }
 
     async fn reconcile_user_state(

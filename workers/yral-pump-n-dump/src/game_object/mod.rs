@@ -1,6 +1,9 @@
 mod ws;
 
-use std::{collections::{hash_map, HashMap}, future::Future};
+use std::{
+    collections::{hash_map, HashMap},
+    future::Future,
+};
 
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
@@ -10,7 +13,11 @@ use crate::{
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
-use pump_n_dump_common::{rest::UserBetsResponse, ws::{GameResult, WsResp}, GameDirection};
+use pump_n_dump_common::{
+    rest::UserBetsResponse,
+    ws::{GameResult, WsResp},
+    GameDirection,
+};
 use wasm_bindgen_futures::spawn_local;
 use worker::*;
 
@@ -271,7 +278,8 @@ impl GameState {
             return round;
         };
 
-        let round = self.state
+        let round = self
+            .state
             .storage()
             .get("current-round")
             .await
@@ -297,7 +305,11 @@ impl GameState {
         user_state_obj.get_stub()
     }
 
-    fn send_reward_to_user(&self, user: Principal, state_diff: StateDiff) -> Result<impl Future<Output = Result<()>> + 'static> {
+    fn send_reward_to_user(
+        &self,
+        user: Principal,
+        state_diff: StateDiff,
+    ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let body = AddRewardReq {
             state_diff,
             user_canister: user,
@@ -310,14 +322,18 @@ impl GameState {
                 .build(),
         )?;
         let user_state = self.user_state_stub(user)?;
- 
+
         Ok(async move {
             user_state.fetch_with_request(req).await?;
             Ok(())
         })
     }
 
-    async fn round_end(&mut self, game_creator: Principal, token_root: Principal) -> Result<Vec<WsResp>> {
+    async fn round_end(
+        &mut self,
+        game_creator: Principal,
+        token_root: Principal,
+    ) -> Result<Vec<WsResp>> {
         let total_dumps = self.cumulative_dumps().await;
         let total_pumps = self.cumulative_pumps().await;
         let round = self.advance_round().await?;
@@ -332,7 +348,7 @@ impl GameState {
             std::mem::take(self.bets().await),
         );
 
-        let winning_pool = pumps + dumps; 
+        let winning_pool = pumps + dumps;
 
         // cleanup
         self.state.storage().delete_all().await?;
@@ -360,12 +376,15 @@ impl GameState {
                 if let Err(e) = res {
                     console_warn!("failed to reward user: {e}")
                 }
-            };
+            }
         });
 
         let backend = self.backend.clone();
         spawn_local(async move {
-            if let Err(e) = backend.add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward).await {
+            if let Err(e) = backend
+                .add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward)
+                .await
+            {
                 console_warn!("failed to add reward to liquidity pool: {e}");
             };
         });
@@ -464,13 +483,16 @@ impl GameState {
 
         Ok(vec![
             WsResp::BetSuccesful { round },
-            WsResp::WinningPoolEvent { new_pool: pool, round, }
+            WsResp::WinningPoolEvent {
+                new_pool: pool,
+                round,
+            },
         ])
     }
 
     async fn game_request(&mut self, game_req: GameObjReq) -> Result<Vec<WsResp>> {
         if self.round().await != game_req.round {
-            return Err(Error::RustError("round mismatch".into()))
+            return Err(Error::RustError("round mismatch".into()));
         }
 
         let user_state = self.user_state_stub(game_req.sender)?;

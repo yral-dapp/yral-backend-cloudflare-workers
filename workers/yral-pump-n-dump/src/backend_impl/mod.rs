@@ -3,9 +3,9 @@ mod real;
 
 use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
-use mock::{NoOpGameBackend, NoOpUserState, MockWsBackend};
+use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
-use yral_canisters_client::individual_user_template::PumpNDumpStateDiff;
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::{
     admin_cans::AdminCans,
@@ -24,9 +24,7 @@ pub(crate) trait GameBackendImpl {
 
 #[enum_dispatch]
 pub(crate) trait UserStateBackendImpl {
-    async fn gdollr_balance(&self, user_canister: Principal) -> Result<Nat>;
-
-    async fn withdrawable_balance(&self, user_canister: Principal) -> Result<Nat>;
+    async fn game_balance(&self, user_canister: Principal) -> Result<BalanceInfo>;
 
     async fn reconcile_user_state(
         &self,
