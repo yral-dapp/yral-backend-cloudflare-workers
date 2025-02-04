@@ -74,6 +74,8 @@ macro_rules! parse_principal {
     }};
 }
 
+pub(crate) use parse_principal;
+
 pub fn game_state_stub<T>(
     ctx: &RouteContext<T>,
     game_canister: Principal,

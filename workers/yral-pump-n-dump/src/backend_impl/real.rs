@@ -68,6 +68,12 @@ impl UserStateBackendImpl for AdminCans {
 
         user.played_game_count().await.map_err(to_worker_error)
     }
+
+    async fn net_earnings(&self, user_canister: Principal) -> Result<Nat> {
+        let user = self.individual_user(user_canister).await;
+
+        user.net_earnings().await.map_err(to_worker_error)
+    }
 }
 
 impl WsBackendImpl for AdminCans {

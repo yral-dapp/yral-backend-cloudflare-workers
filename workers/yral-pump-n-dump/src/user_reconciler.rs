@@ -12,6 +12,7 @@ use yral_canisters_client::individual_user_template::{
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_STATE_RECONCILE_TIME_MS},
+    utils::parse_principal,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -112,6 +113,8 @@ pub struct UserEphemeralState {
     env: Env,
     // effective balance = on_chain_balance + off_chain_balance_delta
     off_chain_balance_delta: Option<Int>,
+    // effective earnings = on_chain_earnings + off_chain_earnings
+    off_chain_earning_delta: Option<Nat>,
     user_canister: Option<Principal>,
     state_diffs: Option<Vec<StateDiff>>,
     pending_games: Option<HashSet<Principal>>,
@@ -180,6 +183,21 @@ impl UserEphemeralState {
             .unwrap_or_default();
         self.off_chain_balance_delta = Some(off_chain_balance_delta);
         self.off_chain_balance_delta.as_mut().unwrap()
+    }
+
+    async fn off_chain_earning_delta(&mut self) -> &mut Nat {
+        if self.off_chain_earning_delta.is_some() {
+            return self.off_chain_earning_delta.as_mut().unwrap();
+        }
+
+        let off_chain_earning_delta = self
+            .state
+            .storage()
+            .get("off_chain_earning_delta")
+            .await
+            .unwrap_or_default();
+        self.off_chain_earning_delta = Some(off_chain_earning_delta);
+        self.off_chain_earning_delta.as_mut().unwrap()
     }
 
     async fn pending_games(&mut self) -> &mut HashSet<Principal> {
@@ -300,12 +318,22 @@ impl UserEphemeralState {
     }
 
     async fn add_state_diff_inner(&mut self, state_diff: StateDiff) -> Result<()> {
-        self.off_chain_balance_delta().await.0 += BigInt::from(state_diff.reward());
+        let reward = state_diff.reward();
+        self.off_chain_balance_delta().await.0 += BigInt::from(reward.clone());
         self.state
             .storage()
             .put(
                 "off_chain_balance_delta",
-                self.off_chain_balance_delta.clone(),
+                self.off_chain_balance_delta().await.clone(),
+            )
+            .await?;
+
+        *self.off_chain_earning_delta().await += reward;
+        self.state
+            .storage()
+            .put(
+                "off_chain_earning_delta",
+                self.off_chain_earning_delta().await.clone(),
             )
             .await?;
 
@@ -341,7 +369,14 @@ impl UserEphemeralState {
         self.off_chain_balance_delta = Some(0.into());
         self.state
             .storage()
-            .put("off_chain_balance_delta", Nat::from(0u32))
+            .delete("off_chain_balance_delta")
+            .await?;
+
+        let earnings = self.off_chain_earning_delta().await.clone();
+        self.off_chain_earning_delta = Some(0u32.into());
+        self.state
+            .storage()
+            .delete("off_chain_earning_delta")
             .await?;
 
         let state_diffs = std::mem::take(self.state_diffs().await);
@@ -365,10 +400,17 @@ impl UserEphemeralState {
         if let Err(e) = res {
             self.off_chain_balance_delta = Some(to_settle.clone());
             self.state_diffs = Some(state_diffs.clone());
+            self.off_chain_earning_delta = Some(earnings.clone());
+
             self.state
                 .storage()
                 .put("off_chain_balance_delta", to_settle)
                 .await?;
+            self.state
+                .storage()
+                .put("off_chain_earning_delta", earnings)
+                .await?;
+
             for (i, state_diff) in state_diffs.into_iter().enumerate() {
                 self.state
                     .storage()
@@ -406,6 +448,13 @@ impl UserEphemeralState {
 
         Ok(on_chain_count + off_chain_count as u64)
     }
+
+    async fn effective_net_earnings(&mut self, user_canister: Principal) -> Result<Nat> {
+        let on_chain_earnings = self.backend.net_earnings(user_canister).await?;
+        let off_chain_earnings = self.off_chain_earning_delta().await.clone();
+
+        Ok(on_chain_earnings + off_chain_earnings)
+    }
 }
 
 #[durable_object]
@@ -419,6 +468,7 @@ impl DurableObject for UserEphemeralState {
             state,
             env,
             off_chain_balance_delta: None,
+            off_chain_earning_delta: None,
             user_canister: None,
             state_diffs: None,
             pending_games: None,
@@ -441,6 +491,14 @@ impl DurableObject for UserEphemeralState {
                 this.set_user_canister(user_canister).await?;
                 let bal = this.effective_balance_info(user_canister).await?;
                 Response::from_json(&bal)
+            })
+            .get_async("/earnings/:user_canister", |_req, ctx| async {
+                let user_canister = parse_principal!(ctx, "user_canister");
+
+                let this = ctx.data;
+                this.set_user_canister(user_canister).await?;
+                let earnings = this.effective_net_earnings(user_canister).await?;
+                Response::ok(earnings.to_string())
             })
             .post_async("/decrement", |mut req, ctx| async move {
                 let this = ctx.data;

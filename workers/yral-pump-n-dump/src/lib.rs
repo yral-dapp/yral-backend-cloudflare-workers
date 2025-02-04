@@ -1,11 +1,10 @@
 mod admin_cans;
+mod agent_wrapper;
 mod backend_impl;
 mod consts;
 mod game_object;
 mod user_reconciler;
-#[macro_use]
 mod utils;
-mod agent_wrapper;
 
 use backend_impl::{WsBackend, WsBackendImpl};
 use candid::Principal;
@@ -16,7 +15,7 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::ClaimGdollrReq;
-use utils::{game_state_stub, user_state_stub, RequestInitBuilder};
+use utils::{game_state_stub, parse_principal, user_state_stub, RequestInitBuilder};
 use worker::*;
 use yral_identity::Signature;
 
@@ -179,6 +178,16 @@ async fn player_count(ctx: RouteContext<()>) -> Result<Response> {
         .await
 }
 
+async fn net_earnings(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister = parse_principal!(ctx, "user_canister");
+
+    let state_stub = user_state_stub(&ctx, user_canister)?;
+
+    state_stub
+        .fetch_with_str(&format!("http://fake_url.com/earnings/{user_canister}"))
+        .await
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -208,6 +217,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/player_count/:game_canister/:token_root", |_req, ctx| {
             player_count(ctx)
         })
+        .get_async("/earnings/:user_canister", |_req, ctx| net_earnings(ctx))
         .run(req, env)
         .await?;
 

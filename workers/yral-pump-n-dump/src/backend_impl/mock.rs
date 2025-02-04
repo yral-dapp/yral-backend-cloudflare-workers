@@ -49,6 +49,10 @@ impl UserStateBackendImpl for NoOpUserState {
     async fn game_count(&self, _user_canister: Principal) -> Result<u64> {
         Ok(10)
     }
+
+    async fn net_earnings(&self, _user_canister: Principal) -> Result<Nat> {
+        Ok(FAKE_BALANCE.into())
+    }
 }
 
 #[derive(Clone)]
