@@ -7,7 +7,7 @@ command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 ENVIRONMENT = "production"
-SET_VALUE_API_KEY = "this-is-super-secret"
+PUBLIC_KEY = "MCowBQYDK2VwAyEAKqYnyZmyfTP4dRGbwjhPsoTD6lbHZy+qR5tFrlmiwjk="
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
