@@ -7,12 +7,12 @@ command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 ENVIRONMENT = "production"
-PUBLIC_KEY = "MCowBQYDK2VwAyEAKqYnyZmyfTP4dRGbwjhPsoTD6lbHZy+qR5tFrlmiwjk="
+PUBLIC_KEY = "MCowBQYDK2VwAyEANON1tMoQT7TMK2EFIcbrehEp0uou2h77DeYiqaYa9tA="
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
 
 [[kv_namespaces]]
 binding = "kvfetch"
-id = "766a2780aea54a9bbe4ed9ba2ce0b178"
-preview_id = "766a2780aea54a9bbe4ed9ba2ce0b178"
+id = "22d12d113e49422897c5bfeee6bec0af"
+preview_id = "22d12d113e49422897c5bfeee6bec0af"
