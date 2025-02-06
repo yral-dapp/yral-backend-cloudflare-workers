@@ -192,6 +192,7 @@ fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
         .with_methods([Method::Head, Method::Get, Method::Post, Method::Options])
+        .with_allowed_headers(vec!["*"])
         .with_max_age(86400)
 }
 
@@ -218,8 +219,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             player_count(ctx)
         })
         .get_async("/earnings/:user_canister", |_req, ctx| net_earnings(ctx))
+        .options("/*catchall", |_, _| {
+            Response::empty()?.with_cors(&cors_policy())
+        })
         .run(req, env)
         .await?;
 
-    res.with_cors(&cors_policy())
+    Ok(res)
 }
