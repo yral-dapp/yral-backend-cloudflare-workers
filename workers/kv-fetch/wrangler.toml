@@ -14,5 +14,5 @@ vars = { ENVIRONMENT = "development" }
 
 [[kv_namespaces]]
 binding = "kvfetch"
-id = "766a2780aea54a9bbe4ed9ba2ce0b178"
-preview_id = "766a2780aea54a9bbe4ed9ba2ce0b178"
+id = "22d12d113e49422897c5bfeee6bec0af"
+preview_id = "22d12d113e49422897c5bfeee6bec0af"
