@@ -37,7 +37,7 @@ fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
 }
 
 async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let req: ClaimReq = req.json().await?;
+    let req: ClaimReq = serde_json::from_str(&req.text().await?)?;
     if let Err((msg, status)) = verify_claim_req(&req) {
         return Response::error(msg, status);
     }
@@ -143,7 +143,6 @@ async fn estabilish_game_ws(req: Request, ctx: RouteContext<()>) -> Result<Respo
     if !token_valid {
         return Response::error("invalid token", 400);
     }
-
     let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
 
     let mut url = Url::parse(&format!(
@@ -219,11 +218,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             player_count(ctx)
         })
         .get_async("/earnings/:user_canister", |_req, ctx| net_earnings(ctx))
-        .options("/*catchall", |_, _| {
-            Response::empty()?.with_cors(&cors_policy())
-        })
+        .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;
 
-    Ok(res)
+    res.with_cors(&cors_policy())
 }
