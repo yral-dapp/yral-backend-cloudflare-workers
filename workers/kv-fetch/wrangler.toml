@@ -1,0 +1,18 @@
+name = "kv-fetch"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+ENVIRONMENT = "production"
+PUBLIC_KEY = "MCowBQYDK2VwAyEAKqYnyZmyfTP4dRGbwjhPsoTD6lbHZy+qR5tFrlmiwjk="
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[[kv_namespaces]]
+binding = "kvfetch"
+id = "766a2780aea54a9bbe4ed9ba2ce0b178"
+preview_id = "766a2780aea54a9bbe4ed9ba2ce0b178"
