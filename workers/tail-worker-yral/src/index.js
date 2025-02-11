@@ -18,7 +18,7 @@ export default {
                     // console.log(JSON.stringify(enrichedLog));
 
                     try {
-                        const response = await fetch('https://vector-dev-tmp.fly.dev/', {
+                        const response = await fetch('https://vector-dev-yral.fly.dev/', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
