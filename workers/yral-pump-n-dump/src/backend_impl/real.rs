@@ -2,7 +2,10 @@ use std::error::Error;
 
 use candid::{Nat, Principal};
 use worker::Result;
-use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1};
+use yral_canisters_client::{
+    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1},
+    sns_ledger::{Account, TransferArg, TransferResult},
+};
 
 use crate::admin_cans::AdminCans;
 
@@ -73,6 +76,50 @@ impl UserStateBackendImpl for AdminCans {
         let user = self.individual_user(user_canister).await;
 
         user.net_earnings().await.map_err(to_worker_error)
+    }
+
+    async fn canister_controller(&self, user_canister: Principal) -> Result<Principal> {
+        self.agent
+            .canister_controller(user_canister)
+            .await
+            .map_err(to_worker_error)
+    }
+
+    async fn dolr_balance(&self, user_index: Principal) -> Result<Nat> {
+        let ledger = self.dolr_ledger().await;
+
+        ledger
+            .icrc_1_balance_of(Account {
+                owner: user_index,
+                subaccount: None,
+            })
+            .await
+            .map_err(to_worker_error)
+    }
+
+    async fn dolr_transfer(&self, to: Principal, amount: Nat) -> Result<()> {
+        let ledger = self.dolr_ledger().await;
+
+        let res = ledger
+            .icrc_1_transfer(TransferArg {
+                from_subaccount: None,
+                to: Account {
+                    owner: to,
+                    subaccount: None,
+                },
+                amount,
+                fee: None,
+                memo: None,
+                created_at_time: None,
+            })
+            .await
+            .map_err(to_worker_error)?;
+
+        if let TransferResult::Err(e) = res {
+            return Err(worker::Error::RustError(format!("{e:?}")));
+        }
+
+        Ok(())
     }
 }
 

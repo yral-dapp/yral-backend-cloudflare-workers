@@ -5,7 +5,7 @@ compatibility_date = "2024-12-22"
 [durable_objects]
 bindings = [
   { name = "USER_EPHEMERAL_STATE", class_name = "UserEphemeralState" },
-  { name = "GAME_STATE", class_name = "GameState" }
+  { name = "GAME_STATE", class_name = "GameState" },
 ]
 
 [[migrations]]

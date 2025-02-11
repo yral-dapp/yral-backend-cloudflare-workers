@@ -1,9 +1,12 @@
+mod treasury;
+
 use std::collections::HashSet;
 
 use candid::{Int, Nat, Principal};
 use num_bigint::BigInt;
 use pump_n_dump_common::{rest::BalanceInfoResponse, GameDirection};
 use serde::{Deserialize, Serialize};
+use treasury::DolrTreasury;
 use worker::*;
 use yral_canisters_client::individual_user_template::{
     self, BalanceInfo, ParticipatedGameInfo, PumpNDumpStateDiff,
@@ -11,7 +14,7 @@ use yral_canisters_client::individual_user_template::{
 
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
-    consts::{GDOLLR_TO_E8S, USER_STATE_RECONCILE_TIME_MS},
+    consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
     utils::parse_principal,
 };
 
@@ -119,6 +122,7 @@ pub struct UserEphemeralState {
     state_diffs: Option<Vec<StateDiff>>,
     pending_games: Option<HashSet<Principal>>,
     backend: StateBackend,
+    dolr_treasury: DolrTreasury,
 }
 
 impl UserEphemeralState {
@@ -268,16 +272,21 @@ impl UserEphemeralState {
         Ok(self.effective_balance_inner(on_chain_balance.balance).await)
     }
 
-    async fn effective_balance_info_inner(&mut self, mut bal_info: BalanceInfo) -> BalanceInfo {
+    async fn effective_balance_info_inner(
+        &mut self,
+        mut bal_info: BalanceInfo,
+    ) -> Result<BalanceInfo> {
         bal_info.balance = self.effective_balance_inner(bal_info.balance.clone()).await;
 
         bal_info.withdrawable = if bal_info.net_airdrop_reward > bal_info.balance {
             0u32.into()
         } else {
-            bal_info.balance.clone() - bal_info.net_airdrop_reward.clone()
+            let bal = bal_info.balance.clone() - bal_info.net_airdrop_reward.clone();
+            let treasury = self.dolr_treasury.amount(&mut self.state.storage()).await?;
+            bal.min(treasury)
         };
 
-        bal_info
+        Ok(bal_info)
     }
 
     async fn effective_balance_info(
@@ -285,7 +294,7 @@ impl UserEphemeralState {
         user_canister: Principal,
     ) -> Result<BalanceInfoResponse> {
         let on_chain_bal = self.backend.game_balance(user_canister).await?;
-        let bal_info = self.effective_balance_info_inner(on_chain_bal).await;
+        let bal_info = self.effective_balance_info_inner(on_chain_bal).await?;
 
         Ok(BalanceInfoResponse {
             net_airdrop_reward: bal_info.net_airdrop_reward,
@@ -424,22 +433,61 @@ impl UserEphemeralState {
         Ok(())
     }
 
+    async fn check_user_index_balance(
+        &mut self,
+        user_canister: Principal,
+        required_amount: Nat,
+    ) -> Result<()> {
+        let user_index = self.backend.canister_controller(user_canister).await?;
+        let balance = self.backend.dolr_balance(user_index).await?;
+        if balance > required_amount {
+            return Ok(());
+        }
+
+        self.backend
+            .dolr_transfer(user_index, USER_INDEX_FUND_AMOUNT.into())
+            .await?;
+
+        Ok(())
+    }
+
+    async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+        let mut storage = self.state.storage();
+
+        self.check_user_index_balance(user_canister, amount.clone())
+            .await?;
+        self.dolr_treasury
+            .try_consume(&mut storage, amount.clone())
+            .await?;
+
+        let res = self
+            .backend
+            .redeem_gdollr(user_canister, amount.clone())
+            .await;
+        match res {
+            Ok(()) => Response::ok("done"),
+            Err(e) => {
+                self.dolr_treasury.rollback(&mut storage, amount).await?;
+                Response::error(e.to_string(), 500u16)
+            }
+        }
+    }
+
     async fn claim_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
         let on_chain_bal = self.backend.game_balance(user_canister).await?;
         if on_chain_bal.withdrawable >= amount {
-            self.backend.redeem_gdollr(user_canister, amount).await?;
-            return Response::ok("done");
+            let res = self.redeem_gdollr(user_canister, amount).await;
+            return res;
         }
 
-        let effective_bal = self.effective_balance_info_inner(on_chain_bal).await;
+        let effective_bal = self.effective_balance_info_inner(on_chain_bal).await?;
         if amount > effective_bal.withdrawable {
             return Response::error("not enough balance", 400);
         }
 
         self.settle_balance(user_canister).await?;
-        self.backend.redeem_gdollr(user_canister, amount).await?;
 
-        Response::ok("done")
+        self.redeem_gdollr(user_canister, amount).await
     }
 
     async fn effective_game_count(&mut self, user_canister: Principal) -> Result<u64> {
@@ -472,6 +520,7 @@ impl DurableObject for UserEphemeralState {
             user_canister: None,
             state_diffs: None,
             pending_games: None,
+            dolr_treasury: DolrTreasury::default(),
             backend,
         }
     }

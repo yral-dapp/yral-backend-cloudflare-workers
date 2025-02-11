@@ -1,4 +1,5 @@
-use ic_agent::{Agent, Identity};
+use candid::Principal;
+use ic_agent::{Agent, AgentError, Identity};
 
 use crate::{
     consts::agent_url,
@@ -31,5 +32,15 @@ impl AgentWrapper {
             RunEnv::Remote => (),
         };
         agent
+    }
+
+    pub async fn canister_controller(&self, canister: Principal) -> Result<Principal, AgentError> {
+        let res = self
+            .0
+            .read_state_canister_info(canister, "controllers")
+            .await?;
+        let controllers: Vec<Principal> =
+            ciborium::from_reader(res.as_slice()).expect("ic0 returned invalid controllers?!");
+        Ok(controllers[0])
     }
 }

@@ -53,6 +53,18 @@ impl UserStateBackendImpl for NoOpUserState {
     async fn net_earnings(&self, _user_canister: Principal) -> Result<Nat> {
         Ok(FAKE_BALANCE.into())
     }
+
+    async fn dolr_balance(&self, _user_index: Principal) -> Result<Nat> {
+        Ok(Nat::from(u64::MAX))
+    }
+
+    async fn canister_controller(&self, user_canister: Principal) -> Result<Principal> {
+        Ok(user_canister)
+    }
+
+    async fn dolr_transfer(&self, _to: Principal, _amount: Nat) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

@@ -1,3 +1,5 @@
+use candid::Principal;
+
 use crate::utils::{env_kind, RunEnv};
 
 pub const GDOLLR_TO_DOLLR: u64 = 100;
@@ -11,6 +13,12 @@ pub const ADMIN_LOCAL_SECP_SK: [u8; 32] = [
     100, 158, 36, 79, 233, 172, 151, 228, 187, 8, 224,
 ];
 pub const LOCAL_METADATA_API_BASE: &str = "http://localhost:8001";
+// [0, 0, 0, 0, 2, 0, 0, 43, 1, 1]
+pub const DOLR_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 0, 0, 43, 1, 1]);
+// 100 DOLLR
+pub const MAXIMUM_DOLR_TREASURY_PER_DAY_PER_USER: u64 = 100 * 1e8 as u64;
+// 400 DOLLR
+pub const USER_INDEX_FUND_AMOUNT: u64 = 400 * 1e8 as u64;
 
 pub const fn agent_url() -> &'static str {
     match env_kind() {

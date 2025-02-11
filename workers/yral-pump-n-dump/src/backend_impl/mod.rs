@@ -37,6 +37,12 @@ pub(crate) trait UserStateBackendImpl {
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 
     async fn net_earnings(&self, user_canister: Principal) -> Result<Nat>;
+
+    async fn canister_controller(&self, user_canister: Principal) -> Result<Principal>;
+
+    async fn dolr_balance(&self, user_index: Principal) -> Result<Nat>;
+
+    async fn dolr_transfer(&self, to: Principal, amount: Nat) -> Result<()>;
 }
 
 #[enum_dispatch]

@@ -2,18 +2,20 @@ use candid::Principal;
 use ic_agent::identity::Secp256k1Identity;
 use k256::SecretKey;
 use worker::{Env, Result};
-use yral_canisters_client::individual_user_template::IndividualUserTemplate;
+use yral_canisters_client::{
+    individual_user_template::IndividualUserTemplate, sns_ledger::SnsLedger,
+};
 use yral_metadata_client::MetadataClient;
 
 use crate::{
     agent_wrapper::AgentWrapper,
-    consts::{ADMIN_LOCAL_SECP_SK, LOCAL_METADATA_API_BASE},
+    consts::{ADMIN_LOCAL_SECP_SK, DOLR_LEDGER, LOCAL_METADATA_API_BASE},
     utils::{env_kind, RunEnv},
 };
 
 #[derive(Clone)]
 pub struct AdminCans {
-    agent: AgentWrapper,
+    pub agent: AgentWrapper,
     metadata: MetadataClient<false>,
 }
 
@@ -73,5 +75,9 @@ impl AdminCans {
 
     pub async fn individual_user(&self, user_canister: Principal) -> IndividualUserTemplate<'_> {
         IndividualUserTemplate(user_canister, self.agent.get().await)
+    }
+
+    pub async fn dolr_ledger(&self) -> SnsLedger<'_> {
+        SnsLedger(DOLR_LEDGER, self.agent.get().await)
     }
 }
