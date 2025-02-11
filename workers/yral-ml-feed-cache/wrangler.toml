@@ -15,3 +15,6 @@ vars = { ENVIRONMENT = "development" }
 binding = "yral-ml-feed-cache"
 id = "ea145fc839bd42f9bf2d34b950ddbda5"
 preview_id = "ea145fc839bd42f9bf2d34b950ddbda5"
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]
