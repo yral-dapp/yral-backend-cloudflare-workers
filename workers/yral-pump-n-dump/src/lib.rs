@@ -187,6 +187,18 @@ async fn net_earnings(ctx: RouteContext<()>) -> Result<Response> {
         .await
 }
 
+async fn uncommitted_games(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister = parse_principal!(ctx, "user_canister");
+
+    let state_stub = user_state_stub(&ctx, user_canister)?;
+
+    state_stub
+        .fetch_with_str(&format!(
+            "http://fake_url.com/uncommitted_games/{user_canister}"
+        ))
+        .await
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -218,6 +230,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             player_count(ctx)
         })
         .get_async("/earnings/:user_canister", |_req, ctx| net_earnings(ctx))
+        .get_async("/uncommitted_games/:user_canister", |_req, ctx| {
+            uncommitted_games(ctx)
+        })
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

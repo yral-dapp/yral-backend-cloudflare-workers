@@ -8,13 +8,13 @@ use std::{
 use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
-    user_reconciler::{AddRewardReq, CompletedGameInfo, DecrementReq, StateDiff},
+    user_reconciler::{AddRewardReq, DecrementReq, StateDiff},
     utils::RequestInitBuilder,
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
 use pump_n_dump_common::{
-    rest::UserBetsResponse,
+    rest::{CompletedGameInfo, UserBetsResponse},
     ws::{GameResult, WsResp},
     GameDirection,
 };

@@ -4,13 +4,11 @@ use std::collections::HashSet;
 
 use candid::{Int, Nat, Principal};
 use num_bigint::BigInt;
-use pump_n_dump_common::{rest::BalanceInfoResponse, GameDirection};
+use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, UncommittedGameInfo};
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
 use worker::*;
-use yral_canisters_client::individual_user_template::{
-    self, BalanceInfo, ParticipatedGameInfo, PumpNDumpStateDiff,
-};
+use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
 
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
@@ -37,50 +35,6 @@ pub struct ClaimGdollrReq {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct CompletedGameInfo {
-    pub pumps: u64,
-    pub dumps: u64,
-    pub reward: Nat,
-    pub token_root: Principal,
-    pub outcome: GameDirection,
-}
-
-impl From<CompletedGameInfo> for ParticipatedGameInfo {
-    fn from(value: CompletedGameInfo) -> Self {
-        Self {
-            pumps: value.pumps,
-            game_direction: if matches!(value.outcome, GameDirection::Pump) {
-                individual_user_template::GameDirection::Pump
-            } else {
-                individual_user_template::GameDirection::Dump
-            },
-            reward: value.reward,
-            dumps: value.dumps,
-            token_root: value.token_root,
-        }
-    }
-}
-
-impl From<ParticipatedGameInfo> for CompletedGameInfo {
-    fn from(value: ParticipatedGameInfo) -> Self {
-        Self {
-            pumps: value.pumps,
-            dumps: value.dumps,
-            reward: value.reward,
-            token_root: value.token_root,
-            outcome: if matches!(
-                value.game_direction,
-                individual_user_template::GameDirection::Pump
-            ) {
-                GameDirection::Pump
-            } else {
-                GameDirection::Dump
-            },
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub enum StateDiff {
     CompletedGame(CompletedGameInfo),
     CreatorReward(Nat),
@@ -102,12 +56,6 @@ impl StateDiff {
             Self::CreatorReward(reward) => reward.clone(),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum GameInfo {
-    Completed(CompletedGameInfo),
-    Pending { token_root: Principal },
 }
 
 #[durable_object]
@@ -592,6 +540,34 @@ impl DurableObject for UserEphemeralState {
 
                 Response::ok(cnt.to_string())
             })
+            .get_async(
+                "/uncommitted_games/:user_canister",
+                |_req, ctx| async move {
+                    let user_canister = parse_principal!(ctx, "user_canister");
+
+                    let this = ctx.data;
+                    this.set_user_canister(user_canister).await?;
+                    let mut pending_games = this
+                        .pending_games()
+                        .await
+                        .iter()
+                        .map(|p| UncommittedGameInfo::Pending { token_root: *p })
+                        .collect::<Vec<_>>();
+                    let completed_games =
+                        this.state_diffs()
+                            .await
+                            .iter()
+                            .filter_map(|diff| match diff {
+                                StateDiff::CompletedGame(g) => {
+                                    Some(UncommittedGameInfo::Completed(g.clone()))
+                                }
+                                _ => None,
+                            });
+                    pending_games.extend(completed_games);
+
+                    Response::from_json(&pending_games)
+                },
+            )
             .run(req, env)
             .await
     }
