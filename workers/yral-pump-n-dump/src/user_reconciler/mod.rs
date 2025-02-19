@@ -3,7 +3,7 @@ mod treasury;
 use std::collections::HashSet;
 
 use candid::{Int, Nat, Principal};
-use num_bigint::BigInt;
+use num_bigint::{BigInt, ToBigInt};
 use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, UncommittedGameInfo};
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
@@ -13,7 +13,7 @@ use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStat
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
-    utils::parse_principal,
+    utils::{parse_principal, StorageCell},
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -63,7 +63,7 @@ pub struct UserEphemeralState {
     state: State,
     env: Env,
     // effective balance = on_chain_balance + off_chain_balance_delta
-    off_chain_balance_delta: Option<Int>,
+    off_chain_balance_delta: StorageCell<Int>,
     // effective earnings = on_chain_earnings + off_chain_earnings
     off_chain_earning_delta: Option<Nat>,
     user_canister: Option<Principal>,
@@ -119,22 +119,6 @@ impl UserEphemeralState {
         self.queue_settle_balance_inner().await?;
 
         Ok(())
-    }
-
-    async fn off_chain_balance_delta(&mut self) -> &mut Int {
-        // if let Some syntax causes lifetime issues
-        if self.off_chain_balance_delta.is_some() {
-            return self.off_chain_balance_delta.as_mut().unwrap();
-        }
-
-        let off_chain_balance_delta = self
-            .state
-            .storage()
-            .get("off_chain_balance_delta")
-            .await
-            .unwrap_or_default();
-        self.off_chain_balance_delta = Some(off_chain_balance_delta);
-        self.off_chain_balance_delta.as_mut().unwrap()
     }
 
     async fn off_chain_earning_delta(&mut self) -> &mut Nat {
@@ -204,7 +188,11 @@ impl UserEphemeralState {
 
     async fn effective_balance_inner(&mut self, on_chain_balance: Nat) -> Nat {
         let mut effective_balance = on_chain_balance;
-        let off_chain_delta = self.off_chain_balance_delta().await.clone();
+        let off_chain_delta = self
+            .off_chain_balance_delta
+            .read(&self.state.storage())
+            .await
+            .clone();
         if off_chain_delta < 0 {
             effective_balance.0 -= (-off_chain_delta.0.clone()).to_biguint().unwrap();
         } else {
@@ -252,13 +240,9 @@ impl UserEphemeralState {
     }
 
     async fn decrement(&mut self, pending_game_root: Principal) -> Result<()> {
-        *self.off_chain_balance_delta().await -= GDOLLR_TO_E8S;
-        self.state
-            .storage()
-            .put(
-                "off_chain_balance_delta",
-                &self.off_chain_balance_delta.as_ref().unwrap(),
-            )
+        let mut storage = self.state.storage();
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta -= GDOLLR_TO_E8S)
             .await?;
 
         let inserted = self.pending_games().await.insert(pending_game_root);
@@ -266,8 +250,7 @@ impl UserEphemeralState {
             return Ok(());
         }
 
-        self.state
-            .storage()
+        storage
             .put(&format!("pending-game-{pending_game_root}"), 0u32)
             .await?;
 
@@ -276,18 +259,15 @@ impl UserEphemeralState {
 
     async fn add_state_diff_inner(&mut self, state_diff: StateDiff) -> Result<()> {
         let reward = state_diff.reward();
-        self.off_chain_balance_delta().await.0 += BigInt::from(reward.clone());
-        self.state
-            .storage()
-            .put(
-                "off_chain_balance_delta",
-                self.off_chain_balance_delta().await.clone(),
-            )
+        let mut storage = self.state.storage();
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| {
+                delta.0 += BigInt::from(reward.clone())
+            })
             .await?;
 
         *self.off_chain_earning_delta().await += reward;
-        self.state
-            .storage()
+        storage
             .put(
                 "off_chain_earning_delta",
                 self.off_chain_earning_delta().await.clone(),
@@ -300,14 +280,12 @@ impl UserEphemeralState {
 
         if let StateDiff::CompletedGame(ginfo) = &state_diff {
             self.pending_games().await.remove(&ginfo.token_root);
-            self.state
-                .storage()
+            storage
                 .delete(&format!("pending-game-{}", ginfo.token_root))
                 .await?;
         }
 
-        self.state
-            .storage()
+        storage
             .put(&format!("state-diff-{}", next_idx), state_diff)
             .await?;
 
@@ -322,23 +300,15 @@ impl UserEphemeralState {
     }
 
     async fn settle_balance(&mut self, user_canister: Principal) -> Result<()> {
-        let to_settle = self.off_chain_balance_delta().await.clone();
-        self.off_chain_balance_delta = Some(0.into());
-        self.state
-            .storage()
-            .delete("off_chain_balance_delta")
-            .await?;
+        let mut storage = self.state.storage();
+        let to_settle = self.off_chain_balance_delta.read(&storage).await.clone();
 
         let earnings = self.off_chain_earning_delta().await.clone();
         self.off_chain_earning_delta = Some(0u32.into());
-        self.state
-            .storage()
-            .delete("off_chain_earning_delta")
-            .await?;
+        storage.delete("off_chain_earning_delta").await?;
 
         let state_diffs = std::mem::take(self.state_diffs().await);
-        self.state
-            .storage()
+        storage
             .delete_multiple(
                 (0..state_diffs.len())
                     .map(|i| format!("state-diff-{i}"))
@@ -346,33 +316,43 @@ impl UserEphemeralState {
             )
             .await?;
 
+        let mut delta_delta = Int::from(0u32);
+        let state_diffs_conv = state_diffs
+            .iter()
+            .map(|diff| {
+                match diff {
+                    StateDiff::CompletedGame(info) => {
+                        delta_delta += Int::from(info.pumps + info.dumps) * GDOLLR_TO_E8S;
+                        delta_delta.0 -= info.reward.clone().0.to_bigint().unwrap();
+                    }
+                    StateDiff::CreatorReward(rew) => {
+                        delta_delta.0 -= rew.clone().0.to_bigint().unwrap();
+                    }
+                }
+                diff.clone().into()
+            })
+            .collect();
+
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta += delta_delta)
+            .await?;
+
         let res = self
             .backend
-            .reconcile_user_state(
-                user_canister,
-                state_diffs.iter().cloned().map(Into::into).collect(),
-            )
+            .reconcile_user_state(user_canister, state_diffs_conv)
             .await;
 
         if let Err(e) = res {
-            self.off_chain_balance_delta = Some(to_settle.clone());
+            self.off_chain_balance_delta
+                .set(&mut storage, to_settle)
+                .await?;
             self.state_diffs = Some(state_diffs.clone());
             self.off_chain_earning_delta = Some(earnings.clone());
 
-            self.state
-                .storage()
-                .put("off_chain_balance_delta", to_settle)
-                .await?;
-            self.state
-                .storage()
-                .put("off_chain_earning_delta", earnings)
-                .await?;
+            storage.put("off_chain_earning_delta", earnings).await?;
 
             for (i, state_diff) in state_diffs.into_iter().enumerate() {
-                self.state
-                    .storage()
-                    .put(&format!("state-diff-{i}"), state_diff)
-                    .await?;
+                storage.put(&format!("state-diff-{i}"), state_diff).await?;
             }
 
             return Err(e);
@@ -463,7 +443,7 @@ impl DurableObject for UserEphemeralState {
         Self {
             state,
             env,
-            off_chain_balance_delta: None,
+            off_chain_balance_delta: StorageCell::new("off_chain_balance_delta", || Int::from(0)),
             off_chain_earning_delta: None,
             user_canister: None,
             state_diffs: None,

@@ -1,7 +1,7 @@
 use candid::Principal;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen_futures::wasm_bindgen;
-use worker::{Headers, Method, RequestInit, Result, RouteContext, Stub};
+use worker::{Headers, Method, RequestInit, Result, RouteContext, Storage, Stub};
 
 #[derive(Default)]
 pub struct RequestInitBuilder(RequestInit);
@@ -93,4 +93,65 @@ pub fn user_state_stub<T>(ctx: &RouteContext<T>, user_canister: Principal) -> Re
     let state_obj = state_ns.id_from_name(&user_canister.to_text())?;
 
     state_obj.get_stub()
+}
+
+pub struct StorageCell<T: Serialize + DeserializeOwned + Clone> {
+    key: String,
+    hot_cache: Option<T>,
+    initial_value: Option<Box<dyn FnOnce() -> T>>,
+}
+
+impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
+    pub fn new(key: impl AsRef<str>, initial_value: impl FnOnce() -> T + 'static) -> Self {
+        Self {
+            key: key.as_ref().to_string(),
+            hot_cache: None,
+            initial_value: Some(Box::new(initial_value)),
+        }
+    }
+
+    pub async fn set(&mut self, storage: &mut Storage, v: T) -> worker::Result<()> {
+        self.hot_cache = Some(v.clone());
+        storage.put(&self.key, v).await
+    }
+
+    pub async fn update(
+        &mut self,
+        storage: &mut Storage,
+        updater: impl FnOnce(&mut T),
+    ) -> worker::Result<()> {
+        let mutated_val = if let Some(v) = self.hot_cache.as_mut() {
+            v
+        } else {
+            let stored_val = storage.get(&self.key).await.unwrap_or_else(|_| {
+                (self
+                    .initial_value
+                    .take()
+                    .expect("initial value borrow error"))()
+            });
+            self.hot_cache = Some(stored_val);
+            self.hot_cache.as_mut().unwrap()
+        };
+        updater(mutated_val);
+
+        storage.put(&self.key, mutated_val.clone()).await?;
+
+        Ok(())
+    }
+
+    pub async fn read(&mut self, storage: &Storage) -> &T {
+        if self.hot_cache.is_some() {
+            return self.hot_cache.as_ref().unwrap();
+        }
+
+        let stored_val = storage.get(&self.key).await.unwrap_or_else(|_| {
+            (self
+                .initial_value
+                .take()
+                .expect("initial value borrow error"))()
+        });
+        self.hot_cache = Some(stored_val);
+
+        self.hot_cache.as_ref().unwrap()
+    }
 }
