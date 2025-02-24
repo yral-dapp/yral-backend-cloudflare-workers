@@ -60,9 +60,8 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
             .json(&body)?
             .build(),
     )?;
-    bal_stub.fetch_with_request(req).await?;
 
-    Response::ok("done")
+    bal_stub.fetch_with_request(req).await
 }
 
 async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
