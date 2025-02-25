@@ -13,7 +13,10 @@ use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStat
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
-    utils::{parse_principal, StorageCell},
+    utils::{
+        parse_principal,
+        storage::{SafeStorage, StorageCell},
+    },
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -74,16 +77,17 @@ pub struct UserEphemeralState {
 }
 
 impl UserEphemeralState {
+    fn storage(&self) -> SafeStorage {
+        self.state.storage().into()
+    }
+
     async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
         if self.user_canister.is_some() {
             return Ok(());
         }
 
         self.user_canister = Some(user_canister);
-        self.state
-            .storage()
-            .put("user_canister", user_canister)
-            .await?;
+        self.storage().put("user_canister", &user_canister).await?;
 
         Ok(())
     }
@@ -93,7 +97,7 @@ impl UserEphemeralState {
             return Some(user_canister);
         }
 
-        let user_canister = self.state.storage().get("user_canister").await.ok()?;
+        let user_canister = self.storage().get("user_canister").await.ok()??;
         self.user_canister = Some(user_canister);
 
         Some(user_canister)
@@ -121,77 +125,58 @@ impl UserEphemeralState {
         Ok(())
     }
 
-    async fn off_chain_earning_delta(&mut self) -> &mut Nat {
+    async fn off_chain_earning_delta(&mut self) -> Result<&mut Nat> {
         if self.off_chain_earning_delta.is_some() {
-            return self.off_chain_earning_delta.as_mut().unwrap();
+            return Ok(self.off_chain_earning_delta.as_mut().unwrap());
         }
 
         let off_chain_earning_delta = self
-            .state
             .storage()
             .get("off_chain_earning_delta")
-            .await
+            .await?
             .unwrap_or_default();
         self.off_chain_earning_delta = Some(off_chain_earning_delta);
-        self.off_chain_earning_delta.as_mut().unwrap()
+        Ok(self.off_chain_earning_delta.as_mut().unwrap())
     }
 
-    async fn pending_games(&mut self) -> &mut HashSet<Principal> {
+    async fn pending_games(&mut self) -> Result<&mut HashSet<Principal>> {
         if self.pending_games.is_some() {
-            return self.pending_games.as_mut().unwrap();
+            return Ok(self.pending_games.as_mut().unwrap());
         }
 
-        let pending_games_idx = self
-            .state
+        let pending_games = self
             .storage()
-            .list_with_options(ListOptions::new().prefix("pending-game-"))
+            .list_with_prefix("pending-games-")
             .await
-            .unwrap_or_default();
-
-        let mut pending_games = HashSet::new();
-        for entry in pending_games_idx.entries() {
-            let raw_entry = entry.expect("invalid pending games stored?!");
-            let (key, _): (String, u32) =
-                serde_wasm_bindgen::from_value(raw_entry).expect("invalid pending games stored?!");
-            let pending_game =
-                Principal::from_text(key.strip_prefix("pending-game-").unwrap()).unwrap();
-            pending_games.insert(pending_game);
-        }
+            .map(|v| v.map(|v| v.1))
+            .collect::<Result<_>>()?;
 
         self.pending_games = Some(pending_games);
-        self.pending_games.as_mut().unwrap()
+        Ok(self.pending_games.as_mut().unwrap())
     }
 
-    async fn state_diffs(&mut self) -> &mut Vec<StateDiff> {
+    async fn state_diffs(&mut self) -> Result<&mut Vec<StateDiff>> {
         if self.state_diffs.is_some() {
-            return self.state_diffs.as_mut().unwrap();
+            return Ok(self.state_diffs.as_mut().unwrap());
         }
 
-        let state_diff_idx = self
-            .state
+        let state_diffs = self
             .storage()
-            .list_with_options(ListOptions::new().prefix("state-diff-"))
+            .list_with_prefix("state-diff-")
             .await
-            .unwrap_or_default();
-
-        let mut state_diffs = Vec::with_capacity(state_diff_idx.size() as usize);
-        for entry in state_diff_idx.entries() {
-            let raw_entry = entry.expect("invalid state diff stored?!");
-            let (_, state_diff): (String, StateDiff) =
-                serde_wasm_bindgen::from_value(raw_entry).expect("invalid state diff stored?!");
-            state_diffs.push(state_diff);
-        }
+            .map(|v| v.map(|v| v.1))
+            .collect::<Result<_>>()?;
 
         self.state_diffs = Some(state_diffs);
-        self.state_diffs.as_mut().unwrap()
+        Ok(self.state_diffs.as_mut().unwrap())
     }
 
-    async fn effective_balance_inner(&mut self, on_chain_balance: Nat) -> Nat {
+    async fn effective_balance_inner(&mut self, on_chain_balance: Nat) -> Result<Nat> {
         let mut effective_balance = on_chain_balance;
         let off_chain_delta = self
             .off_chain_balance_delta
-            .read(&self.state.storage())
-            .await
+            .read(&self.storage())
+            .await?
             .clone();
         if off_chain_delta < 0 {
             effective_balance.0 -= (-off_chain_delta.0.clone()).to_biguint().unwrap();
@@ -199,26 +184,28 @@ impl UserEphemeralState {
             effective_balance.0 += off_chain_delta.0.to_biguint().unwrap();
         };
 
-        effective_balance
+        Ok(effective_balance)
     }
 
     async fn effective_balance(&mut self, user_canister: Principal) -> Result<Nat> {
         let on_chain_balance = self.backend.game_balance(user_canister).await?;
 
-        Ok(self.effective_balance_inner(on_chain_balance.balance).await)
+        self.effective_balance_inner(on_chain_balance.balance).await
     }
 
     async fn effective_balance_info_inner(
         &mut self,
         mut bal_info: BalanceInfo,
     ) -> Result<BalanceInfo> {
-        bal_info.balance = self.effective_balance_inner(bal_info.balance.clone()).await;
+        bal_info.balance = self
+            .effective_balance_inner(bal_info.balance.clone())
+            .await?;
 
         bal_info.withdrawable = if bal_info.net_airdrop_reward > bal_info.balance {
             0u32.into()
         } else {
             let bal = bal_info.balance.clone() - bal_info.net_airdrop_reward.clone();
-            let treasury = self.dolr_treasury.amount(&mut self.state.storage()).await?;
+            let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
             bal.min(treasury)
         };
 
@@ -240,18 +227,21 @@ impl UserEphemeralState {
     }
 
     async fn decrement(&mut self, pending_game_root: Principal) -> Result<()> {
-        let mut storage = self.state.storage();
+        let mut storage = self.storage();
         self.off_chain_balance_delta
             .update(&mut storage, |delta| *delta -= GDOLLR_TO_E8S)
             .await?;
 
-        let inserted = self.pending_games().await.insert(pending_game_root);
+        let inserted = self.pending_games().await?.insert(pending_game_root);
         if !inserted {
             return Ok(());
         }
 
         storage
-            .put(&format!("pending-game-{pending_game_root}"), 0u32)
+            .put(
+                &format!("pending-game-{pending_game_root}"),
+                &pending_game_root,
+            )
             .await?;
 
         Ok(())
@@ -259,34 +249,34 @@ impl UserEphemeralState {
 
     async fn add_state_diff_inner(&mut self, state_diff: StateDiff) -> Result<()> {
         let reward = state_diff.reward();
-        let mut storage = self.state.storage();
+        let mut storage = self.storage();
         self.off_chain_balance_delta
             .update(&mut storage, |delta| {
                 delta.0 += BigInt::from(reward.clone())
             })
             .await?;
 
-        *self.off_chain_earning_delta().await += reward;
+        *self.off_chain_earning_delta().await? += reward;
         storage
             .put(
                 "off_chain_earning_delta",
-                self.off_chain_earning_delta().await.clone(),
+                self.off_chain_earning_delta().await?,
             )
             .await?;
 
-        let state_diffs = self.state_diffs().await;
+        let state_diffs = self.state_diffs().await?;
         state_diffs.push(state_diff.clone());
         let next_idx = state_diffs.len() - 1;
 
         if let StateDiff::CompletedGame(ginfo) = &state_diff {
-            self.pending_games().await.remove(&ginfo.token_root);
+            self.pending_games().await?.remove(&ginfo.token_root);
             storage
                 .delete(&format!("pending-game-{}", ginfo.token_root))
                 .await?;
         }
 
         storage
-            .put(&format!("state-diff-{}", next_idx), state_diff)
+            .put(&format!("state-diff-{}", next_idx), &state_diff)
             .await?;
 
         Ok(())
@@ -300,14 +290,14 @@ impl UserEphemeralState {
     }
 
     async fn settle_balance(&mut self, user_canister: Principal) -> Result<()> {
-        let mut storage = self.state.storage();
-        let to_settle = self.off_chain_balance_delta.read(&storage).await.clone();
+        let mut storage = self.storage();
+        let to_settle = self.off_chain_balance_delta.read(&storage).await?.clone();
 
-        let earnings = self.off_chain_earning_delta().await.clone();
+        let earnings = self.off_chain_earning_delta().await?.clone();
         self.off_chain_earning_delta = Some(0u32.into());
         storage.delete("off_chain_earning_delta").await?;
 
-        let state_diffs = std::mem::take(self.state_diffs().await);
+        let state_diffs = std::mem::take(self.state_diffs().await?);
         storage
             .delete_multiple(
                 (0..state_diffs.len())
@@ -349,10 +339,10 @@ impl UserEphemeralState {
             self.state_diffs = Some(state_diffs.clone());
             self.off_chain_earning_delta = Some(earnings.clone());
 
-            storage.put("off_chain_earning_delta", earnings).await?;
+            storage.put("off_chain_earning_delta", &earnings).await?;
 
             for (i, state_diff) in state_diffs.into_iter().enumerate() {
-                storage.put(&format!("state-diff-{i}"), state_diff).await?;
+                storage.put(&format!("state-diff-{i}"), &state_diff).await?;
             }
 
             return Err(e);
@@ -380,7 +370,7 @@ impl UserEphemeralState {
     }
 
     async fn redeem_gdollr(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
-        let mut storage = self.state.storage();
+        let mut storage = self.storage();
 
         self.check_user_index_balance(user_canister, amount.clone())
             .await?;
@@ -420,14 +410,14 @@ impl UserEphemeralState {
 
     async fn effective_game_count(&mut self, user_canister: Principal) -> Result<u64> {
         let on_chain_count = self.backend.game_count(user_canister).await?;
-        let off_chain_count = self.state_diffs().await.len() + self.pending_games().await.len();
+        let off_chain_count = self.state_diffs().await?.len() + self.pending_games().await?.len();
 
         Ok(on_chain_count + off_chain_count as u64)
     }
 
     async fn effective_net_earnings(&mut self, user_canister: Principal) -> Result<Nat> {
         let on_chain_earnings = self.backend.net_earnings(user_canister).await?;
-        let off_chain_earnings = self.off_chain_earning_delta().await.clone();
+        let off_chain_earnings = self.off_chain_earning_delta().await?.clone();
 
         Ok(on_chain_earnings + off_chain_earnings)
     }
@@ -532,13 +522,13 @@ impl DurableObject for UserEphemeralState {
                     this.set_user_canister(user_canister).await?;
                     let mut pending_games = this
                         .pending_games()
-                        .await
+                        .await?
                         .iter()
                         .map(|p| UncommittedGameInfo::Pending { token_root: *p })
                         .collect::<Vec<_>>();
                     let completed_games =
                         this.state_diffs()
-                            .await
+                            .await?
                             .iter()
                             .filter_map(|diff| match diff {
                                 StateDiff::CompletedGame(g) => {
@@ -561,7 +551,7 @@ impl DurableObject for UserEphemeralState {
             return Response::ok("not ready");
         };
 
-        if self.state_diffs().await.is_empty() {
+        if self.state_diffs().await?.is_empty() {
             console_warn!("alarm set without any updates?!");
             return Response::ok("not required");
         }

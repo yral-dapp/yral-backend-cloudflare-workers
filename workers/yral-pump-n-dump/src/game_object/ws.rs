@@ -35,7 +35,7 @@ impl GameState {
 
         let user_bets = self
             .bets()
-            .await
+            .await?
             .get(&user_canister)
             .copied()
             .unwrap_or_default();
@@ -43,8 +43,8 @@ impl GameState {
         ws.send(&WsResponse {
             request_id: Uuid::max(),
             response: WsResp::WelcomeEvent {
-                round: self.round().await,
-                pool: self.pumps().await + self.dumps().await,
+                round: self.round().await?,
+                pool: self.pumps().await? + self.dumps().await?,
                 player_count: self.state.get_websockets().len() as u64,
                 user_bets: UserBetsResponse {
                     pumps: user_bets[0],

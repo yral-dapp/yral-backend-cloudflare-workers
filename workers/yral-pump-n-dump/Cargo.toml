@@ -20,6 +20,8 @@ futures.workspace = true
 serde-wasm-bindgen.workspace = true
 serde_json.workspace = true
 wasm-bindgen-futures.workspace = true
+postcard.workspace = true
+serde_bytes.workspace = true
 
 # crate specific stuff
 enum_dispatch = "0.3.13"

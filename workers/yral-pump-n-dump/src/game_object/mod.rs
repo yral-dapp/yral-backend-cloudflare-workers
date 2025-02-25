@@ -9,7 +9,7 @@ use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, DecrementReq, StateDiff},
-    utils::RequestInitBuilder,
+    utils::{storage::SafeStorage, RequestInitBuilder},
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -136,69 +136,58 @@ impl RewardIter {
 }
 
 impl GameState {
-    async fn pumps(&mut self) -> u64 {
+    fn storage(&self) -> SafeStorage {
+        self.state.storage().into()
+    }
+
+    async fn pumps(&mut self) -> Result<u64> {
         if let Some(p) = self.round_pumps {
-            return p;
+            return Ok(p);
         }
 
-        let pumps = self.state.storage().get("pumps").await.unwrap_or_default();
+        let pumps = self.storage().get("pumps").await?.unwrap_or_default();
         self.round_pumps = Some(pumps);
-        pumps
+        Ok(pumps)
     }
 
-    async fn dumps(&mut self) -> u64 {
+    async fn dumps(&mut self) -> Result<u64> {
         if let Some(d) = self.round_dumps {
-            return d;
+            return Ok(d);
         }
 
-        let dumps = self.state.storage().get("dumps").await.unwrap_or_default();
+        let dumps = self.storage().get("dumps").await?.unwrap_or_default();
         self.round_dumps = Some(dumps);
-        dumps
+        Ok(dumps)
     }
 
-    async fn cumulative_pumps(&mut self) -> u64 {
+    async fn cumulative_pumps(&mut self) -> Result<u64> {
         if let Some(tot) = self.cumulative_pumps {
-            return tot;
+            return Ok(tot);
         }
 
-        let pumps = self
-            .state
-            .storage()
-            .get("total-pumps")
-            .await
-            .unwrap_or_default();
+        let pumps = self.storage().get("total-pumps").await?.unwrap_or_default();
         self.cumulative_pumps = Some(pumps);
-        pumps
+        Ok(pumps)
     }
 
-    async fn cumulative_dumps(&mut self) -> u64 {
+    async fn cumulative_dumps(&mut self) -> Result<u64> {
         if let Some(tot) = self.cumulative_dumps {
-            return tot;
+            return Ok(tot);
         }
 
-        let dumps = self
-            .state
-            .storage()
-            .get("total-dumps")
-            .await
-            .unwrap_or_default();
+        let dumps = self.storage().get("total-dumps").await?.unwrap_or_default();
         self.cumulative_dumps = Some(dumps);
-        dumps
+        Ok(dumps)
     }
 
     async fn increment_pumps_inner(&mut self) -> Result<u64> {
-        let total_pumps = self.cumulative_pumps().await + 1;
-        let pumps = self.pumps().await + 1;
+        let total_pumps = self.cumulative_pumps().await? + 1;
+        let pumps = self.pumps().await? + 1;
 
-        self.state
-            .storage()
-            .transaction(move |mut txn| async move {
-                txn.put("total-pumps", total_pumps).await?;
-                txn.put("pumps", pumps).await?;
+        let mut storage = self.storage();
+        storage.put("total-pumps", &total_pumps).await?;
+        storage.put("pumps", &pumps).await?;
 
-                Ok(())
-            })
-            .await?;
         self.cumulative_pumps = Some(total_pumps);
         self.round_pumps = Some(pumps);
 
@@ -206,18 +195,12 @@ impl GameState {
     }
 
     async fn increment_dumps_inner(&mut self) -> Result<u64> {
-        let total_dumps = self.cumulative_dumps().await + 1;
-        let dumps = self.dumps().await + 1;
+        let total_dumps = self.cumulative_dumps().await? + 1;
+        let dumps = self.dumps().await? + 1;
 
-        self.state
-            .storage()
-            .transaction(move |mut txn| async move {
-                txn.put("total-dumps", total_dumps).await?;
-                txn.put("dumps", dumps).await?;
-
-                Ok(())
-            })
-            .await?;
+        let mut storage = self.storage();
+        storage.put("total-dumps", &total_dumps).await?;
+        storage.put("dumps", &dumps).await?;
 
         self.cumulative_dumps = Some(total_dumps);
         self.round_dumps = Some(dumps);
@@ -225,75 +208,69 @@ impl GameState {
         Ok(dumps)
     }
 
-    async fn has_tide_shifted(&mut self) -> bool {
+    async fn has_tide_shifted(&mut self) -> Result<bool> {
         if let Some(shifted) = self.has_tide_shifted {
-            return shifted;
+            return Ok(shifted);
         };
 
         let shifted = self
-            .state
             .storage()
             .get("has_tide_shifted")
-            .await
+            .await?
             .unwrap_or_default();
         self.has_tide_shifted = Some(shifted);
 
-        shifted
+        Ok(shifted)
     }
 
     async fn set_tide_shifted(&mut self) -> Result<()> {
         self.has_tide_shifted = Some(true);
-        self.state.storage().put("has_tide_shifted", true).await?;
+        self.storage().put("has_tide_shifted", &true).await?;
 
         Ok(())
     }
 
-    async fn bets(&mut self) -> &mut HashMap<Principal, [u64; 2]> {
+    async fn bets(&mut self) -> Result<&mut HashMap<Principal, [u64; 2]>> {
         if self.bets.is_some() {
-            return self.bets.as_mut().unwrap();
+            return Ok(self.bets.as_mut().unwrap());
         }
 
-        let bets_index = self
-            .state
+        let bets = self
             .storage()
-            .list_with_options(ListOptions::new().prefix("bets-"))
+            .list_with_prefix("bets-")
             .await
-            .unwrap_or_default();
-
-        let mut bets = HashMap::new();
-        for entry in bets_index.entries() {
-            let raw_entry = entry.expect("invalid bets stored?!");
-            let (key, bet): (String, [u64; 2]) =
-                serde_wasm_bindgen::from_value(raw_entry).expect("invalid bets stored?!");
-            let better = Principal::from_text(key.strip_prefix("bets-").unwrap()).unwrap();
-            bets.insert(better, bet);
-        }
+            .map(|v| {
+                v.map(|(k, v)| {
+                    let better = Principal::from_text(k.strip_prefix("bets-").unwrap()).unwrap();
+                    (better, v)
+                })
+            })
+            .collect::<Result<_>>()?;
 
         self.bets = Some(bets);
-        self.bets.as_mut().unwrap()
+        Ok(self.bets.as_mut().unwrap())
     }
 
-    pub async fn round(&mut self) -> u64 {
+    pub async fn round(&mut self) -> Result<u64> {
         if let Some(round) = self.round {
-            return round;
+            return Ok(round);
         };
 
         let round = self
-            .state
             .storage()
             .get("current-round")
-            .await
+            .await?
             .unwrap_or_default();
 
         self.round = Some(round);
-        round
+        Ok(round)
     }
 
     /// advance the game round, returning the new round
     pub async fn advance_round(&mut self) -> Result<u64> {
-        let new_round = self.round().await + 1;
+        let new_round = self.round().await? + 1;
         self.round = Some(new_round);
-        self.state.storage().put("current-round", new_round).await?;
+        self.storage().put("current-round", &new_round).await?;
 
         Ok(new_round)
     }
@@ -334,30 +311,31 @@ impl GameState {
         game_creator: Principal,
         token_root: Principal,
     ) -> Result<Vec<WsResp>> {
-        let total_dumps = self.cumulative_dumps().await;
-        let total_pumps = self.cumulative_pumps().await;
+        let total_dumps = self.cumulative_dumps().await?;
+        let total_pumps = self.cumulative_pumps().await?;
         let round = self.advance_round().await?;
 
-        let pumps = self.pumps().await;
-        let dumps = self.dumps().await;
+        let pumps = self.pumps().await?;
+        let dumps = self.dumps().await?;
         let rewards = RewardIter::new(
             pumps,
             dumps,
             game_creator,
             token_root,
-            std::mem::take(self.bets().await),
+            std::mem::take(self.bets().await?),
         );
 
         let winning_pool = pumps + dumps;
 
         // cleanup
-        self.state.storage().delete_all().await?;
+        let mut storage = self.storage();
+        storage.delete_all().await?;
         self.round_pumps = Some(0);
         self.round_dumps = Some(0);
 
-        self.state.storage().put("total-dumps", total_dumps).await?;
-        self.state.storage().put("total-pumps", total_pumps).await?;
-        self.state.storage().put("current-round", round).await?;
+        storage.put("total-dumps", &total_dumps).await?;
+        storage.put("total-pumps", &total_pumps).await?;
+        storage.put("current-round", &round).await?;
 
         let game_res = GameResult {
             direction: rewards.outcome,
@@ -408,7 +386,7 @@ impl GameState {
             return Ok(false);
         }
 
-        if !self.has_tide_shifted().await {
+        if !self.has_tide_shifted().await? {
             self.set_tide_shifted().await?;
             return Ok(false);
         }
@@ -422,27 +400,24 @@ impl GameState {
         token_root: Principal,
         sender: Principal,
     ) -> Result<Vec<WsResp>> {
-        let bets = self.bets().await.entry(sender).or_insert([0, 0]);
+        let bets = self.bets().await?.entry(sender).or_insert([0, 0]);
         bets[0] += 1;
         let bets = *bets;
 
         self.increment_pumps_inner().await?;
 
-        let total_pumps = self.cumulative_pumps().await;
-        let total_dumps = self.cumulative_dumps().await;
+        let total_pumps = self.cumulative_pumps().await?;
+        let total_dumps = self.cumulative_dumps().await?;
         let tide_shifted = self.tide_shift_check(total_pumps, total_dumps).await?;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
         }
 
-        self.state
-            .storage()
-            .put(&format!("bets-{sender}"), bets)
-            .await?;
+        self.storage().put(&format!("bets-{sender}"), &bets).await?;
 
-        let round = self.round().await;
-        let pool = self.pumps().await + self.dumps().await;
+        let round = self.round().await?;
+        let pool = self.pumps().await? + self.dumps().await?;
 
         Ok(vec![
             WsResp::BetSuccesful { round },
@@ -459,27 +434,24 @@ impl GameState {
         token_root: Principal,
         sender: Principal,
     ) -> Result<Vec<WsResp>> {
-        let bets = self.bets().await.entry(sender).or_insert([0, 0]);
+        let bets = self.bets().await?.entry(sender).or_insert([0, 0]);
         bets[1] += 1;
         let bets = *bets;
 
         self.increment_dumps_inner().await?;
 
-        let total_pumps = self.cumulative_pumps().await;
-        let total_dumps = self.cumulative_dumps().await;
+        let total_pumps = self.cumulative_pumps().await?;
+        let total_dumps = self.cumulative_dumps().await?;
         let tide_shifted = self.tide_shift_check(total_dumps, total_pumps).await?;
 
         if tide_shifted {
             return self.round_end(game_creator, token_root).await;
         }
 
-        self.state
-            .storage()
-            .put(&format!("bets-{sender}"), bets)
-            .await?;
+        self.storage().put(&format!("bets-{sender}"), &bets).await?;
 
-        let round = self.round().await;
-        let pool = self.pumps().await + self.dumps().await;
+        let round = self.round().await?;
+        let pool = self.pumps().await? + self.dumps().await?;
 
         Ok(vec![
             WsResp::BetSuccesful { round },
@@ -491,7 +463,7 @@ impl GameState {
     }
 
     async fn game_request(&mut self, game_req: GameObjReq) -> Result<Vec<WsResp>> {
-        if self.round().await != game_req.round {
+        if self.round().await? != game_req.round {
             return Err(Error::RustError("round mismatch".into()));
         }
 
@@ -563,7 +535,7 @@ impl DurableObject for GameState {
                 let this = ctx.data;
                 let bets = this
                     .bets()
-                    .await
+                    .await?
                     .get(&user_canister)
                     .copied()
                     .unwrap_or_default();
@@ -597,7 +569,7 @@ impl DurableObject for GameState {
             )
             .get_async("/game_pool", |_req, ctx| async move {
                 let this = ctx.data;
-                let total = this.dumps().await + this.pumps().await;
+                let total = this.dumps().await? + this.pumps().await?;
                 Response::ok(total.to_string())
             })
             .get("/player_count", |_req, ctx| {
