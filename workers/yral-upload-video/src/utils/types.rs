@@ -143,6 +143,66 @@ pub struct Watermark {
     width: Option<f32>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct WatermarkRequest {
+    uid: Option<String>,
+}
+
+/**
+ * maxDurationSeconds: number
+(maximum: 21600, minimum: 1)
+The maximum duration in seconds for a video upload. Can be set for a video that is not yet uploaded to limit its duration. Uploads that exceed the specified duration will fail during processing. A value of -1 means the value is unknown.
+allowedOrigins: Array<AllowedOrigins>OPTIONAL
+Lists the origins allowed to display the video. Enter allowed origin domains in an array and use * for wildcard subdomains. Empty arrays allow the video to be viewed on any origin.
+creator: stringOPTIONAL
+(maxLength: 64)
+A user-defined identifier for the media creator.
+expiry: stringOPTIONAL
+(format: date-time)
+The date and time after upload when videos will not be accepted.
+meta: unknownOPTIONAL
+A user modifiable key-value store used to reference other systems of record for managing videos.
+requireSignedURLs: booleanOPTIONAL
+Indicates whether the video can be a accessed using the UID. When set to true, a signed token must be generated with a signing key to view the video.
+scheduledDeletion: stringOPTIONAL
+(format: date-time)
+Indicates the date and time at which the video will be deleted. Omit the field to indicate no change, or include with a null value to remove an existing scheduled deletion. If specified, must be at least 30 days from upload time.
+thumbnailTimestampPct: numberOPTIONAL
+(maximum: 1, minimum: 0)
+The timestamp for a thumbnail image calculated as a percentage value of the video's duration. To convert from a second-wise timestamp to a percentage, divide the desired timestamp by the total duration of the video. If this value is not set, the default thumbnail image is taken from 0s of the video.
+
+watermark: { OPTIONAL
+uid: stringOPTIONAL
+(maxLength: 32)
+The unique identifier for the watermark profile.
+}
+ */
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct DirectUploadRequestType {
+    #[serde(rename = "maxDurationSeconds")]
+    pub max_duration_seconds: u64,
+    #[serde(rename = "allowedOrigins", skip_serializing_if = "Option::is_none")]
+    pub allowed_origins: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub creator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expiry: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, String>>,
+    #[serde(rename = "requiredSignedURLs", skip_serializing_if = "Option::is_none")]
+    pub required_signed_urls: Option<bool>,
+    #[serde(rename = "scheduledDeletion")]
+    pub scheduled_deletion: Option<String>,
+    #[serde(
+        rename = "thumbnailTimestampPct",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub thumnail_timestamp_pct: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watermark: Option<WatermarkRequest>,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DirectUploadResult {
     #[serde(rename = "scheduledDeletion")]

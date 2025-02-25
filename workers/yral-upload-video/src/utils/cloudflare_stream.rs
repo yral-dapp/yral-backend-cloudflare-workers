@@ -1,11 +1,11 @@
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, ops::Add};
 
 use axum::http::{header, HeaderMap};
 use ic_agent::export::reqwest;
 use serde::{Deserialize, Serialize};
-use worker::{console_log, Url};
+use worker::{Date, DateInit, Url};
 
-use crate::utils::types::{ResponseInfo, StreamResponseType};
+use crate::utils::types::{DirectUploadRequestType, ResponseInfo, StreamResponseType};
 
 use super::types::{DirectUploadResult, Video};
 
@@ -35,8 +35,13 @@ impl CloudflareStream {
     pub async fn get_upload_url(&self) -> Result<DirectUploadResult, Box<dyn Error>> {
         type DirectUploadResponseType = StreamResponseType<DirectUploadResult>;
         let url = Url::join(&self.base_url, "direct_upload".into())?;
-        console_log!("{}", url.as_str());
-        let response = self.client.post(url).send().await?;
+
+        let scheduled_deletion = Date::now().as_millis().add(1000 * 60 * 60); // 1hour
+        let request_data = DirectUploadRequestType {
+            scheduled_deletion: Some(Date::new(DateInit::Millis(scheduled_deletion)).to_string()),
+            ..Default::default()
+        };
+        let response = self.client.post(url).json(&request_data).send().await?;
         let response_data: DirectUploadResponseType = response.json().await?;
 
         if response_data.success {
@@ -74,6 +79,8 @@ impl CloudflareStream {
         #[derive(Serialize, Deserialize)]
         struct EditVideoRequestType {
             meta: HashMap<String, String>,
+            #[serde(rename = "scheduledDeletion")]
+            scheduled_deletion: Option<String>,
         }
 
         #[derive(Serialize, Deserialize)]
@@ -86,7 +93,10 @@ impl CloudflareStream {
         let response = self
             .client
             .post(url)
-            .json(&EditVideoRequestType { meta })
+            .json(&EditVideoRequestType {
+                meta,
+                scheduled_deletion: None,
+            })
             .send()
             .await?;
 
