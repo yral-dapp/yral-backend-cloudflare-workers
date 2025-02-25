@@ -508,11 +508,9 @@ impl GameState {
                 .build(),
         )?;
 
-        let res = user_state.fetch_with_request(req).await?;
+        let mut res = user_state.fetch_with_request(req).await?;
         if res.status_code() != 200 {
-            return Err(worker::Error::RustError(
-                "failed to handle decrement".into(),
-            ));
+            return Err(worker::Error::RustError(res.text().await.unwrap()));
         }
 
         match game_req.direction {

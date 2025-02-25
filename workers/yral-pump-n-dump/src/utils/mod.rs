@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use candid::Principal;
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen_futures::wasm_bindgen;
@@ -95,13 +97,13 @@ pub fn user_state_stub<T>(ctx: &RouteContext<T>, user_canister: Principal) -> Re
     state_obj.get_stub()
 }
 
-pub struct StorageCell<T: Serialize + DeserializeOwned + Clone> {
+pub struct StorageCell<T: Serialize + DeserializeOwned + Clone + Debug> {
     key: String,
     hot_cache: Option<T>,
     initial_value: Option<Box<dyn FnOnce() -> T>>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
+impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
     pub fn new(key: impl AsRef<str>, initial_value: impl FnOnce() -> T + 'static) -> Self {
         Self {
             key: key.as_ref().to_string(),
@@ -111,6 +113,7 @@ impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
     }
 
     pub async fn set(&mut self, storage: &mut Storage, v: T) -> worker::Result<()> {
+        worker::console_log!("new value for obj {:?}", v);
         self.hot_cache = Some(v.clone());
         storage.put(&self.key, v).await
     }
@@ -123,7 +126,8 @@ impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
         let mutated_val = if let Some(v) = self.hot_cache.as_mut() {
             v
         } else {
-            let stored_val = storage.get(&self.key).await.unwrap_or_else(|_| {
+            let stored_val = storage.get(&self.key).await.unwrap_or_else(|e| {
+                worker::console_log!("failed to get obj: {e}");
                 (self
                     .initial_value
                     .take()
@@ -133,6 +137,7 @@ impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
             self.hot_cache.as_mut().unwrap()
         };
         updater(mutated_val);
+        worker::console_log!("new value for obj {:?}", mutated_val);
 
         storage.put(&self.key, mutated_val.clone()).await?;
 
@@ -144,7 +149,8 @@ impl<T: Serialize + DeserializeOwned + Clone> StorageCell<T> {
             return self.hot_cache.as_ref().unwrap();
         }
 
-        let stored_val = storage.get(&self.key).await.unwrap_or_else(|_| {
+        let stored_val = storage.get(&self.key).await.unwrap_or_else(|e| {
+            worker::console_log!("failed to get obj: {e}");
             (self
                 .initial_value
                 .take()

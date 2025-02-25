@@ -486,7 +486,10 @@ impl DurableObject for UserEphemeralState {
                 if bal < GDOLLR_TO_E8S {
                     return Response::error("Not enough balance", 400);
                 }
-                this.decrement(decr_req.token_root).await?;
+                let res = this.decrement(decr_req.token_root).await;
+                if let Err(e) = res {
+                    return Response::error(format!("failed to decrement: {e}"), 500);
+                }
 
                 Response::ok("done")
             })
