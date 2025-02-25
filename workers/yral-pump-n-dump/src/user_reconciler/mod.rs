@@ -132,7 +132,7 @@ impl UserEphemeralState {
 
         let off_chain_earning_delta = self
             .storage()
-            .get("off_chain_earning_delta")
+            .get::<Nat>("off_chain_earning_delta")
             .await?
             .unwrap_or_default();
         self.off_chain_earning_delta = Some(off_chain_earning_delta);

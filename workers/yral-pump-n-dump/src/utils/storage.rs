@@ -13,7 +13,7 @@ impl From<Storage> for SafeStorage {
 }
 
 fn deser_bbuf<T: DeserializeOwned>(key: &str, buf: ByteBuf) -> Result<T> {
-    let res = postcard::from_bytes(&buf);
+    let res = rmp_serde::from_slice(&buf);
     match res {
         Ok(v) => Ok(v),
         Err(e) => {
@@ -25,7 +25,7 @@ fn deser_bbuf<T: DeserializeOwned>(key: &str, buf: ByteBuf) -> Result<T> {
 
 impl SafeStorage {
     pub async fn put(&mut self, key: impl AsRef<str>, v: &impl Serialize) -> worker::Result<()> {
-        let v_ser = postcard::to_stdvec(&v).map_err(|e| worker::Error::RustError(e.to_string()))?;
+        let v_ser = rmp_serde::to_vec(&v).map_err(|e| worker::Error::RustError(e.to_string()))?;
         let v_raw = ByteBuf::from(v_ser);
         let v_js = serde_wasm_bindgen::to_value(&v_raw)?;
 

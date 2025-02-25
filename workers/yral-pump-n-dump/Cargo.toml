@@ -20,7 +20,7 @@ futures.workspace = true
 serde-wasm-bindgen.workspace = true
 serde_json.workspace = true
 wasm-bindgen-futures.workspace = true
-postcard.workspace = true
+rmp-serde.workspace = true
 serde_bytes.workspace = true
 
 # crate specific stuff
