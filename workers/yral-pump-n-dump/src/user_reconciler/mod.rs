@@ -2,7 +2,7 @@ mod treasury;
 
 use std::collections::HashSet;
 
-use candid::{Int, Nat, Principal};
+use candid::{Nat, Principal};
 use num_bigint::{BigInt, ToBigInt};
 use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, UncommittedGameInfo};
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,7 @@ pub struct UserEphemeralState {
     state: State,
     env: Env,
     // effective balance = on_chain_balance + off_chain_balance_delta
-    off_chain_balance_delta: StorageCell<Int>,
+    off_chain_balance_delta: StorageCell<BigInt>,
     // effective earnings = on_chain_earnings + off_chain_earnings
     off_chain_earning_delta: Option<Nat>,
     user_canister: Option<Principal>,
@@ -178,10 +178,10 @@ impl UserEphemeralState {
             .read(&self.storage())
             .await?
             .clone();
-        if off_chain_delta < 0 {
-            effective_balance.0 -= (-off_chain_delta.0.clone()).to_biguint().unwrap();
+        if off_chain_delta < 0u32.into() {
+            effective_balance.0 -= (-off_chain_delta.clone()).to_biguint().unwrap();
         } else {
-            effective_balance.0 += off_chain_delta.0.to_biguint().unwrap();
+            effective_balance.0 += off_chain_delta.to_biguint().unwrap();
         };
 
         Ok(effective_balance)
@@ -251,9 +251,7 @@ impl UserEphemeralState {
         let reward = state_diff.reward();
         let mut storage = self.storage();
         self.off_chain_balance_delta
-            .update(&mut storage, |delta| {
-                delta.0 += BigInt::from(reward.clone())
-            })
+            .update(&mut storage, |delta| *delta += BigInt::from(reward.clone()))
             .await?;
 
         *self.off_chain_earning_delta().await? += reward;
@@ -306,17 +304,17 @@ impl UserEphemeralState {
             )
             .await?;
 
-        let mut delta_delta = Int::from(0u32);
+        let mut delta_delta = BigInt::from(0u32);
         let state_diffs_conv = state_diffs
             .iter()
             .map(|diff| {
                 match diff {
                     StateDiff::CompletedGame(info) => {
-                        delta_delta += Int::from(info.pumps + info.dumps) * GDOLLR_TO_E8S;
-                        delta_delta.0 -= info.reward.clone().0.to_bigint().unwrap();
+                        delta_delta += BigInt::from(info.pumps + info.dumps) * GDOLLR_TO_E8S;
+                        delta_delta -= info.reward.clone().0.to_bigint().unwrap();
                     }
                     StateDiff::CreatorReward(rew) => {
-                        delta_delta.0 -= rew.clone().0.to_bigint().unwrap();
+                        delta_delta -= rew.clone().0.to_bigint().unwrap();
                     }
                 }
                 diff.clone().into()
@@ -433,7 +431,9 @@ impl DurableObject for UserEphemeralState {
         Self {
             state,
             env,
-            off_chain_balance_delta: StorageCell::new("off_chain_balance_delta", || Int::from(0)),
+            off_chain_balance_delta: StorageCell::new("off_chain_balance_delta", || {
+                BigInt::from(0)
+            }),
             off_chain_earning_delta: None,
             user_canister: None,
             state_diffs: None,

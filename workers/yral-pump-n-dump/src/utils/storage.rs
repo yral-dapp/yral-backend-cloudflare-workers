@@ -89,15 +89,15 @@ impl SafeStorage {
 pub struct StorageCell<T: Serialize + DeserializeOwned + Clone + Debug> {
     key: String,
     hot_cache: Option<T>,
-    initial_value: Option<Box<dyn FnOnce() -> T>>,
+    initial_value: fn() -> T,
 }
 
 impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
-    pub fn new(key: impl AsRef<str>, initial_value: impl FnOnce() -> T + 'static) -> Self {
+    pub fn new(key: impl AsRef<str>, initial_value: fn() -> T) -> Self {
         Self {
             key: key.as_ref().to_string(),
             hot_cache: None,
-            initial_value: Some(Box::new(initial_value)),
+            initial_value,
         }
     }
 
@@ -114,12 +114,10 @@ impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
         let mutated_val = if let Some(v) = self.hot_cache.as_mut() {
             v
         } else {
-            let stored_val = storage.get(&self.key).await?.unwrap_or_else(|| {
-                (self
-                    .initial_value
-                    .take()
-                    .expect("initial value borrow error"))()
-            });
+            let stored_val = storage
+                .get(&self.key)
+                .await?
+                .unwrap_or_else(self.initial_value);
             self.hot_cache = Some(stored_val);
             self.hot_cache.as_mut().unwrap()
         };
@@ -135,12 +133,10 @@ impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
             return Ok(self.hot_cache.as_ref().unwrap());
         }
 
-        let stored_val = storage.get(&self.key).await?.unwrap_or_else(|| {
-            (self
-                .initial_value
-                .take()
-                .expect("initial value borrow error"))()
-        });
+        let stored_val = storage
+            .get(&self.key)
+            .await?
+            .unwrap_or_else(self.initial_value);
         self.hot_cache = Some(stored_val);
 
         Ok(self.hot_cache.as_ref().unwrap())
