@@ -77,6 +77,13 @@ macro_rules! parse_principal {
 }
 
 pub(crate) use parse_principal;
+use yral_metrics::{
+    metric_sender::{
+        js_spawn::JsSpawnMetricTx, mock::MaybeMockLocalMetricEventTx, vectordb::VectorDbMetricTx,
+        LocalMetricTx,
+    },
+    metrics::EventSource,
+};
 
 pub fn game_state_stub<T>(
     ctx: &RouteContext<T>,
@@ -95,4 +102,16 @@ pub fn user_state_stub<T>(ctx: &RouteContext<T>, user_canister: Principal) -> Re
     let state_obj = state_ns.id_from_name(&user_canister.to_text())?;
 
     state_obj.get_stub()
+}
+
+pub type CfMetricTx = LocalMetricTx<MaybeMockLocalMetricEventTx<JsSpawnMetricTx<VectorDbMetricTx>>>;
+
+pub fn metrics() -> CfMetricTx {
+    let ev_tx = if env_kind() == RunEnv::Remote {
+        MaybeMockLocalMetricEventTx::Real(JsSpawnMetricTx(VectorDbMetricTx::default()))
+    } else {
+        MaybeMockLocalMetricEventTx::default()
+    };
+
+    LocalMetricTx::new(EventSource::PumpNDumpWorker, ev_tx)
 }

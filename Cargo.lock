@@ -4046,6 +4046,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "trait-variant"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70977707304198400eb4835a78f6a9f928bf41bba420deb8fdb175cd965d77a7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.96",
+]
+
+[[package]]
 name = "tree-deserializer"
 version = "0.9.0"
 source = "git+https://github.com/dfinity/ic.git?rev=b2a4053f1dca2455511f2c6c0dc12cb65f93b4b1#b2a4053f1dca2455511f2c6c0dc12cb65f93b4b1"
@@ -4562,7 +4573,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=35ed8e8d93952e2cb0d473ccd8568510c0251467#35ed8e8d93952e2cb0d473ccd8568510c0251467"
+source = "git+https://github.com/yral-dapp/yral-common?rev=a7445b969af286710f11ab4d5e8953980689c761#a7445b969af286710f11ab4d5e8953980689c761"
 dependencies = [
  "anyhow",
  "candid",
@@ -4647,6 +4658,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "yral-metrics"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common?rev=a7445b969af286710f11ab4d5e8953980689c761#a7445b969af286710f11ab4d5e8953980689c761"
+dependencies = [
+ "candid",
+ "log",
+ "reqwest",
+ "serde",
+ "trait-variant",
+ "wasm-bindgen-futures",
+ "web-time",
+]
+
+[[package]]
 name = "yral-ml-feed-cache"
 version = "0.1.0"
 dependencies = [
@@ -4682,13 +4707,14 @@ dependencies = [
  "yral-canisters-client",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client",
+ "yral-metrics",
  "yral-pump-n-dump-common",
 ]
 
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=35ed8e8d93952e2cb0d473ccd8568510c0251467#35ed8e8d93952e2cb0d473ccd8568510c0251467"
+source = "git+https://github.com/yral-dapp/yral-common?rev=a7445b969af286710f11ab4d5e8953980689c761#a7445b969af286710f11ab4d5e8953980689c761"
 dependencies = [
  "candid",
  "serde",

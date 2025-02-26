@@ -9,13 +9,15 @@ use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
 use worker::*;
 use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
+use yral_metrics::metrics::cents_withdrawal::CentsWithdrawal;
 
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
     utils::{
-        parse_principal,
+        metrics, parse_principal,
         storage::{SafeStorage, StorageCell},
+        CfMetricTx,
     },
 };
 
@@ -74,6 +76,7 @@ pub struct UserEphemeralState {
     pending_games: Option<HashSet<Principal>>,
     backend: StateBackend,
     dolr_treasury: DolrTreasury,
+    metrics: CfMetricTx,
 }
 
 impl UserEphemeralState {
@@ -381,7 +384,16 @@ impl UserEphemeralState {
             .redeem_gdollr(user_canister, amount.clone())
             .await;
         match res {
-            Ok(()) => Response::ok("done"),
+            Ok(()) => {
+                self.metrics
+                    .push(CentsWithdrawal {
+                        user_canister,
+                        amount,
+                    })
+                    .await
+                    .unwrap();
+                Response::ok("done")
+            }
             Err(e) => {
                 self.dolr_treasury.rollback(&mut storage, amount).await?;
                 Response::error(e.to_string(), 500u16)
@@ -440,6 +452,7 @@ impl DurableObject for UserEphemeralState {
             pending_games: None,
             dolr_treasury: DolrTreasury::default(),
             backend,
+            metrics: metrics(),
         }
     }
 
