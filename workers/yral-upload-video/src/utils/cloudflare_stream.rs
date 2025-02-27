@@ -1,11 +1,13 @@
-use std::{collections::HashMap, error::Error, ops::Add};
+use std::{collections::HashMap, error::Error, ops::Add, time::Duration};
 
 use axum::http::{header, HeaderMap};
 use ic_agent::export::reqwest;
 use serde::{Deserialize, Serialize};
 use worker::{Date, DateInit, Url};
 
-use crate::utils::types::{DirectUploadRequestType, ResponseInfo, StreamResponseType};
+use crate::utils::types::{
+    DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
+};
 
 use super::types::{DirectUploadResult, Video};
 
@@ -39,6 +41,10 @@ impl CloudflareStream {
         let scheduled_deletion = Date::now().as_millis().add(1000 * 60 * 60); // 1hour
         let request_data = DirectUploadRequestType {
             scheduled_deletion: Some(Date::new(DateInit::Millis(scheduled_deletion)).to_string()),
+            watermark: Some(WatermarkRequest {
+                uid: Some(CF_WATERMARK_UID.to_owned()),
+            }),
+            max_duration_seconds: Duration::from_secs(60).as_secs(),
             ..Default::default()
         };
         let response = self.client.post(url).json(&request_data).send().await?;

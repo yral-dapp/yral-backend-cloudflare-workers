@@ -36,7 +36,6 @@ pub fn verify_webhook_signature(
         .last()
         .ok_or("invalid signature header format")?;
 
-    //TODO: verify the  signature
     let req_data_string = serde_json::to_string(&req_data)?;
 
     let input_str = format!("{time}.{req_data_string}");
@@ -57,7 +56,6 @@ pub fn verify_webhook_signature(
         Err("Invalid webhook signature".into())
     }
 }
-
 pub async fn notify_video_upload_impl(
     req_data: NotifyRequestPayload,
     headers: HeaderMap,

@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
 
 pub const DELEGATED_IDENTITY_KEY: &'static str = "delegated-identity";
 pub const POST_DETAILS_KEY: &'static str = "post-details";
+pub const CF_WATERMARK_UID: &'static str = "b5588fa1516ca33a08ebfef06c8edb33";
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NotifyStatusType {
     pub state: String,
     pub step: Option<String>,
@@ -19,7 +20,7 @@ pub struct NotifyStatusType {
     pub err_reason_text: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NotifyRequestPayload {
     pub uid: String,
     #[serde(rename = "readyToStream")]
@@ -145,7 +146,7 @@ pub struct Watermark {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct WatermarkRequest {
-    uid: Option<String>,
+    pub uid: Option<String>,
 }
 
 /**

@@ -140,9 +140,17 @@ pub async fn notify_video_upload(
     headers: HeaderMap,
     Json(payload): Json<NotifyRequestPayload>,
 ) -> Json<APIResponse<()>> {
-    Json(APIResponse::from(
-        notify_video_upload_impl(payload, headers, app_state.webhook_secret_key.clone()).await,
-    ))
+    console_log!("Notify Recieved: {:?}", &payload);
+    let result =
+        notify_video_upload_impl(payload, headers, app_state.webhook_secret_key.clone()).await;
+
+    match result {
+        Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
+        Err(e) => {
+            console_error!("Error processing Notify: {}", e.to_string());
+            Json(APIResponse::from(Err(e)))
+        }
+    }
 }
 
 async fn update_metadata_impl(
