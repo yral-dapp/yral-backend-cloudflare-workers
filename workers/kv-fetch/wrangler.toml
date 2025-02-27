@@ -16,3 +16,6 @@ vars = { ENVIRONMENT = "development" }
 binding = "kvfetch"
 id = "22d12d113e49422897c5bfeee6bec0af"
 preview_id = "22d12d113e49422897c5bfeee6bec0af"
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]

@@ -6,9 +6,7 @@ compatibility_date = "2024-11-21"
 command = "chmod +x build.sh && ./build.sh"
 
 [durable_objects]
-bindings = [
-  { name = "CANISTER_DATA", class_name = "CanisterData" }
-]
+bindings = [{ name = "CANISTER_DATA", class_name = "CanisterData" }]
 
 [triggers]
 crons = ["*/10 * * * *"]
@@ -19,3 +17,6 @@ new_classes = ["CanisterData"]
 
 [env.production.vars]
 API_HOST = ""
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]

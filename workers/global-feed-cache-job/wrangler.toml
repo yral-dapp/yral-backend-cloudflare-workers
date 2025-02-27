@@ -14,3 +14,6 @@ vars = { ENVIRONMENT = "development" }
 
 [triggers]
 crons = ["*/30 * * * *"]
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]
