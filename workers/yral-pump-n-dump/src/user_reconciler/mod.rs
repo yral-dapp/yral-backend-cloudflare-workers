@@ -149,7 +149,7 @@ impl UserEphemeralState {
 
         let pending_games = self
             .storage()
-            .list_with_prefix("pending-games-")
+            .list_with_prefix("pending-game-")
             .await
             .map(|v| v.map(|v| v.1))
             .collect::<Result<_>>()?;
