@@ -1,0 +1,32 @@
+name: Deploy Pump N Dump Game Worker
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feat/cloudflare-upload-video-worker
+    paths:
+      - "workers/yral-upload-video/**"
+      - ".github/workflows/deploy-yral-upload-worker.yml"
+
+jobs:
+  deploy-worker:
+    name: Deploy yral-upload-video
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
+          workingDirectory: workers/yral-pump-n-dump
+          secrets: |
+            CLOUDFLARE_STREAM_API_KEY
+            CLOUDFLARE_STREAM_ACCOUNT_ID
+            CLOUDFLARE_STREAM_WEBHOOK_SECRET
+        env:
+          CLOUDFLARE_STREAM_API_KEY: ${{secrets.CLOUDFLARE_STREAM_API_KEY}}
+          CLOUDFLARE_STREAM_ACCOUNT_ID: ${{vars.CLOUDFLARE_STREAM_ACCOUNT_ID}}
+          CLOUDFLARE_STREAM_WEBHOOK_SECRET: ${{secrets.CLOUDFLARE_STREAM_WEBHOOK_SECRET}}
