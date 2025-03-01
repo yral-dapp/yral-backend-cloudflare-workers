@@ -89,7 +89,9 @@ fn router(env: Env, ctx: Context) -> Router {
         env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
             .unwrap()
             .to_string(),
-        env.secret("CLOUDFLARE_STREAM_API_KEY").unwrap().to_string(),
+        env.secret("CLOUDFLARE_STREAM_API_TOKEN")
+            .unwrap()
+            .to_string(),
         env.secret("CLOUDFLARE_STREAM_WEBHOOK_SECRET")
             .unwrap()
             .to_string(),
