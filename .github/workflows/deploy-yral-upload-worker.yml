@@ -18,6 +18,11 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
+      - name: Install protoc
+        run: |
+          sudo apt-get install protobuf-compiler
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
