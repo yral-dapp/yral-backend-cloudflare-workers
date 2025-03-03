@@ -14,9 +14,9 @@ pub struct NotifyStatusType {
     pub step: Option<String>,
     #[serde(rename = "pctComplete")]
     pub pct_complete: Option<String>,
-    #[serde(rename = "errReasonCode")]
+    #[serde(rename = "errorReasonCode")]
     pub err_reason_code: Option<String>,
-    #[serde(rename = "errReasonText")]
+    #[serde(rename = "errorReasonText")]
     pub err_reason_text: Option<String>,
 }
 
@@ -79,7 +79,7 @@ pub struct Video {
     pub scheduled_deletion: Option<String>, // format: date-time
 
     #[serde(rename = "size", skip_serializing_if = "Option::is_none")]
-    pub size: Option<u64>, // number (size in bytes)
+    pub size: Option<f64>, // number (size in bytes)
 
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<NotifyStatusType>, // { errorReasonCode, errorReasonText, pctComplete, 1 more... }
@@ -109,10 +109,10 @@ pub struct Video {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Input {
     #[serde(rename = "height")]
-    pub height: Option<u32>,
+    pub height: Option<f32>,
 
     #[serde(rename = "width")]
-    pub width: Option<u32>,
+    pub width: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,13 +133,15 @@ pub struct ResponseInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Watermark {
     created: Option<String>,
-    #[serde(rename = "downloadFrom")]
-    download_from: Option<String>,
+    #[serde(rename = "downloadedFrom")]
+    downloaded_from: Option<String>,
     height: Option<f32>,
     name: Option<String>,
     opacity: Option<f32>,
-    padding: Option<String>,
+    padding: Option<f64>,
+    position: Option<String>,
     scale: Option<f32>,
+    size: Option<f64>,
     uid: Option<String>,
     width: Option<f32>,
 }
@@ -209,7 +211,7 @@ pub struct DirectUploadResult {
     #[serde(rename = "scheduledDeletion")]
     pub scheduled_deletion: Option<String>,
     pub uid: Option<String>,
-    #[serde(rename = "uploadUrl")]
+    #[serde(rename = "uploadURL")]
     pub upload_url: Option<String>,
     pub watermark: Option<Watermark>,
 }
