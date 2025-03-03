@@ -1,7 +1,6 @@
 use cfg_if::cfg_if;
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Identity};
 use k256::SecretKey;
-use worker::console_log;
 use yral_canisters_client::{
     self, individual_user_template::IndividualUserTemplate,
     platform_orchestrator::PlatformOrchestrator, user_index::UserIndex,
@@ -50,10 +49,6 @@ impl AdminCanisters {
         }
 
         PlatformOrchestrator(PLATFORM_ORCHESTRATOR_ID, self.get_agent().await)
-    }
-
-    pub fn principal(&self) -> Principal {
-        self.agent.principal().unwrap()
     }
 
     #[inline]

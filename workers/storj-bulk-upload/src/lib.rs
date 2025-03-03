@@ -15,8 +15,8 @@ use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use serde_json::json;
 use worker::{
-    console_error, console_log, console_warn, event, query, Context as WorkerContext, D1Database,
-    Env, Request, Response, Result,
+    console_error, console_log, event, query, Context as WorkerContext, D1Database, Env, Request,
+    Response, Result,
 };
 
 #[event(start)]
