@@ -42,7 +42,7 @@ async fn get_item_count_in_staging(work_items: &D1Database) -> Result<usize> {
 
 #[event(fetch, respond_with_errors)]
 async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response> {
-    let admin = AdminCanisters::new(AdminCanisters::get_identity());
+    let admin = AdminCanisters::new(AdminCanisters::get_identity()?);
     let work_items = env.d1("STORJ_STAGING_DB")?;
     let count = get_item_count_in_staging(&work_items).await?;
 
