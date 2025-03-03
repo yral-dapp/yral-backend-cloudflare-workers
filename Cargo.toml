@@ -1,5 +1,13 @@
 [workspace]
-members = [ "workers/global-feed-cache-job", "workers/sample-worker", "workers/storj-bulk-upload", "workers/yral-ml-feed-cache","workers/yral-onchain-backend"]
+members = [
+    "workers/global-feed-cache-job",
+    "workers/sample-worker",
+    "workers/yral-ml-feed-cache",
+    "workers/yral-onchain-backend",
+    "workers/icpump_token_cleanup",
+    "workers/kv-fetch",
+    "workers/storj-bulk-upload",
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -9,3 +17,6 @@ console_error_panic_hook = { version = "0.1.1" }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
 futures = "0.3.31"
+ic-agent = "0.39.1"
+getrandom = { version = "0.2", features = ["js"] }
+jsonwebtoken = { version = "9.3.0", features = ["use_pem"] }

@@ -16,7 +16,7 @@ serde_json.workspace = true
 cfg-if = "0.1.2"
 console_error_panic_hook.workspace = true
 yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", version = "0.1.0", features = ["backend"] }
-yral-canisters-common = { git = "https://github.com/yral-dapp/yral-common", default-features = false, version = "0.1.0", features = ["js"] }
+yral-canisters-common = { git = "https://github.com/yral-dapp/yral-common", default-features = false, version = "0.1.0" }
 yral-types = { git = "https://github.com/yral-dapp/yral-common", version = "0.1.0" }
 ic-agent = { version = "0.38.1", default-features = false, features = ["pem", "wasm-bindgen"] }
 k256 = { version = "0.13.4", default-features = false, features = [

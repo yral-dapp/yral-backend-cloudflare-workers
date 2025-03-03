@@ -15,3 +15,6 @@ vars = { ENVIRONMENT = "development" }
 binding = "assets"
 id = "766a2780aea54a9bbe4ed9ba2ce0b178"
 preview_id = "766a2780aea54a9bbe4ed9ba2ce0b178"
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]

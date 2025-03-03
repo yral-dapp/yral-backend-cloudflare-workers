@@ -32,11 +32,11 @@ async fn load_all_posts(
             .await
             .context("Couldn't get post")?;
 
-        use yral_canisters_client::individual_user_template::Result12;
+        use yral_canisters_client::individual_user_template::Result13;
         let post = match post_res {
-            Result12::Ok(posts) => posts,
-            Result12::Err(GetPostsOfUserProfileError::ReachedEndOfItemsList) => break,
-            Result12::Err(err) => anyhow::bail!("{err:?}"),
+            Result13::Ok(posts) => posts,
+            Result13::Err(GetPostsOfUserProfileError::ReachedEndOfItemsList) => break,
+            Result13::Err(err) => anyhow::bail!("{err:?}"),
         };
 
         posts.extend(post.into_iter())
