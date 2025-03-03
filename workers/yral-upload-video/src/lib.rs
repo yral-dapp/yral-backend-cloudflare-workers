@@ -144,7 +144,7 @@ pub async fn update_metadata(
 pub async fn notify_video_upload(
     State(app_state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(payload): Json<NotifyRequestPayload>,
+    payload: String,
 ) -> Json<APIResponse<()>> {
     console_log!("Notify Recieved: {:?}", &payload);
     let result =
