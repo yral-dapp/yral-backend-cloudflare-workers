@@ -1,6 +1,6 @@
 use cfg_if::cfg_if;
 use ic_agent::{export::Principal, identity::Secp256k1Identity, Identity};
-use k256::SecretKey;
+use worker::Env;
 use yral_canisters_client::{
     self, individual_user_template::IndividualUserTemplate,
     platform_orchestrator::PlatformOrchestrator, user_index::UserIndex,
@@ -19,21 +19,22 @@ impl AdminCanisters {
         }
     }
 
-    cfg_if! {
-        if #[cfg(feature = "local")] {
-            pub fn get_identity() -> worker::Result<impl Identity + 'static> {
+    pub fn get_identity(env: &Env) -> worker::Result<impl Identity + 'static> {
+        cfg_if! {
+            if #[cfg(feature = "local")] {
+                use k256::SecretKey;
+                let _ = env;
                 const ADMIN_SECP_BYTES: [u8; 32] = [
                     9, 64, 7, 55, 201, 208, 139, 219, 167, 201, 176, 6, 31, 109, 44, 248, 27, 241, 239, 56, 98,
                     100, 158, 36, 79, 233, 172, 151, 228, 187, 8, 224,
                 ];
                 let sk = SecretKey::from_bytes(&ADMIN_SECP_BYTES.into()).unwrap();
                 Ok(Secp256k1Identity::from_private_key(sk))
-            }
-        } else {
-            pub fn get_identity() -> worker::Result<impl Identity + 'static> {
+            } else {
                 let admin_pem = env.secret("BACKEND_ADMIN_KEY")?.to_string();
-                Secp256k1Identity::from_pem(admin_pem.as_bytes())
+                let id = Secp256k1Identity::from_pem(admin_pem.as_bytes())
                     .map_err(|e| worker::Error::RustError(e.to_string()))?;
+                Ok(id)
             }
         }
     }
