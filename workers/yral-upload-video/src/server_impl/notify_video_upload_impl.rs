@@ -61,6 +61,13 @@ pub async fn notify_video_upload_impl(
     headers: HeaderMap,
     webhook_secret_key: String,
 ) -> Result<(), Box<dyn Error>> {
+    if req_data.status.state.eq("error") {
+        return Err(req_data
+            .status
+            .err_reason_text
+            .unwrap_or("unknown error while processing video".into())
+            .into());
+    }
     let webhook_signature = headers
         .get("Webhook-Signature")
         .ok_or("Signature not found")?
