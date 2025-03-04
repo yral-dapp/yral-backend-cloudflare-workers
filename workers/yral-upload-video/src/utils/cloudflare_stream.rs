@@ -118,6 +118,7 @@ impl CloudflareStream {
             errors: Vec<ResponseInfo>,
             messages: Option<Vec<ResponseInfo>>,
             success: bool,
+            video: Option<Video>,
         }
 
         let response = self
