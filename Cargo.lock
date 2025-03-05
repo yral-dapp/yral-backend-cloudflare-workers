@@ -4663,7 +4663,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=856e289ceceaab0dc6c57e378fceb814f353bfa9#856e289ceceaab0dc6c57e378fceb814f353bfa9"
+source = "git+https://github.com/yral-dapp/yral-common?rev=78c1ec2888c0705dfc875b47c2f31206eb954fec#78c1ec2888c0705dfc875b47c2f31206eb954fec"
 dependencies = [
  "anyhow",
  "candid",
@@ -4805,7 +4805,7 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=856e289ceceaab0dc6c57e378fceb814f353bfa9#856e289ceceaab0dc6c57e378fceb814f353bfa9"
+source = "git+https://github.com/yral-dapp/yral-common?rev=78c1ec2888c0705dfc875b47c2f31206eb954fec#78c1ec2888c0705dfc875b47c2f31206eb954fec"
 dependencies = [
  "candid",
  "serde",
