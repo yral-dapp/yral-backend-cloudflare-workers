@@ -11,6 +11,7 @@ use crate::utils::{
 };
 
 pub async fn upload_video_to_canister(
+    mut events: Warehouse,
     video_uid: String,
     delegated_identity_wire: DelegatedIdentityWire,
     post_details: PostDetailsFromFrontend,
@@ -29,8 +30,6 @@ pub async fn upload_video_to_canister(
 
     let individual_user_service =
         IndividualUserCanisterService(user_details.user_canister_id, &ic_agent);
-
-    let mut events = Warehouse::default();
 
     match upload_video_to_canister_inner(&individual_user_service, post_details.clone()).await {
         Ok(post_id) => {

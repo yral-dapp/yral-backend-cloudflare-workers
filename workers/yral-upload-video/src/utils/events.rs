@@ -1,7 +1,8 @@
 use candid::Principal;
 use serde_json::json;
 use std::error::Error;
-use tonic_web_wasm_client::Client;
+use tonic::metadata::MetadataValue;
+use tonic_web_wasm_client::{options::FetchOptions, Client};
 use warehouse_event::{warehouse_events_client::WarehouseEventsClient, WarehouseEvent};
 
 pub mod warehouse_event {
@@ -11,14 +12,16 @@ pub mod warehouse_event {
 #[derive(Clone)]
 pub struct Warehouse {
     pub client: WarehouseEventsClient<Client>,
+    off_chain_agent_grpc_auth_token: String,
 }
 
-impl Default for Warehouse {
-    fn default() -> Self {
+impl Warehouse {
+    pub fn with_auth_token(auth_token: String) -> Self {
         let client = Client::new("https://offchain-agent.fly.dev".to_string());
 
         Self {
             client: WarehouseEventsClient::new(client),
+            off_chain_agent_grpc_auth_token: auth_token,
         }
     }
 }
@@ -50,10 +53,17 @@ impl Warehouse {
         })
         .to_string();
 
-        let request = tonic::Request::new(warehouse_event::WarehouseEvent {
+        let mut request = tonic::Request::new(warehouse_event::WarehouseEvent {
             event: "video_upload_successful".to_string(),
             params,
         });
+
+        let token: MetadataValue<_> =
+            format!("Bearer {}", self.off_chain_agent_grpc_auth_token).parse()?;
+
+        request
+            .metadata_mut()
+            .insert("authorization", token.clone());
 
         self.client.send_event(request).await?;
 
@@ -82,10 +92,17 @@ impl Warehouse {
         })
         .to_string();
 
-        let request = tonic::Request::new(warehouse_event::WarehouseEvent {
+        let mut request = tonic::Request::new(warehouse_event::WarehouseEvent {
             event: "video_upload_unsuccessful".to_string(),
             params,
         });
+
+        let token: MetadataValue<_> =
+            format!("Bearer {}", self.off_chain_agent_grpc_auth_token).parse()?;
+
+        request
+            .metadata_mut()
+            .insert("authorization", token.clone());
 
         self.client.send_event(request).await?;
 

@@ -74,11 +74,12 @@ impl AppState {
         clouflare_account_id: String,
         cloudflare_api_token: String,
         webhook_secret_key: String,
+        off_chain_auth_token: String,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
         Ok(Self {
             cloudflare_stream,
-            events: Warehouse::default(),
+            events: Warehouse::with_auth_token(off_chain_auth_token),
             webhook_secret_key,
         })
     }
@@ -95,6 +96,7 @@ fn router(env: Env, ctx: Context) -> Router {
         env.secret("CLOUDFLARE_STREAM_WEBHOOK_SECRET")
             .unwrap()
             .to_string(),
+        env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string(),
     )
     .unwrap();
 
@@ -135,7 +137,12 @@ pub async fn update_metadata(
     Json(payload): Json<UpdateMetadataRequest>,
 ) -> Json<APIResponse<()>> {
     Json(APIResponse::from(
-        update_metadata_impl(&app_state.cloudflare_stream, payload).await,
+        update_metadata_impl(
+            &app_state.cloudflare_stream,
+            app_state.events.clone(),
+            payload,
+        )
+        .await,
     ))
 }
 
@@ -147,8 +154,13 @@ pub async fn notify_video_upload(
     payload: String,
 ) -> Json<APIResponse<()>> {
     console_log!("Notify Recieved: {:?}", &payload);
-    let result =
-        notify_video_upload_impl(payload, headers, app_state.webhook_secret_key.clone()).await;
+    let result = notify_video_upload_impl(
+        app_state.events.clone(),
+        payload,
+        headers,
+        app_state.webhook_secret_key.clone(),
+    )
+    .await;
 
     match result {
         Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
@@ -161,6 +173,7 @@ pub async fn notify_video_upload(
 
 async fn update_metadata_impl(
     cloudflare_stream: &CloudflareStream,
+    events: Warehouse,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
     let video_details = cloudflare_stream
@@ -170,6 +183,7 @@ async fn update_metadata_impl(
     if let Some(ready_to_stream) = video_details.ready_to_stream {
         if ready_to_stream {
             return upload_video_to_canister(
+                events,
                 req_data.video_uid,
                 req_data.delegated_identity_wire,
                 req_data.post_details,

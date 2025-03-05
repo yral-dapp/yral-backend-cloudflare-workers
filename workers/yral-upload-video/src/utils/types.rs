@@ -10,7 +10,7 @@ pub const CF_WATERMARK_UID: &'static str = "b5588fa1516ca33a08ebfef06c8edb33";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NotifyStatusType {
-    pub state: String,
+    pub state: Option<String>,
     pub step: Option<String>,
     #[serde(rename = "pctComplete")]
     pub pct_complete: Option<String>,
@@ -43,7 +43,7 @@ pub struct Video {
     pub creator: Option<String>, // maxLength: 64
 
     #[serde(rename = "duration", skip_serializing_if = "Option::is_none")]
-    pub duration: Option<i32>, // number, -1 means unknown
+    pub duration: Option<f32>, // number, -1 means unknown
 
     #[serde(rename = "input", skip_serializing_if = "Option::is_none")]
     pub input: Option<Input>, // { height, width }
@@ -79,7 +79,7 @@ pub struct Video {
     pub scheduled_deletion: Option<String>, // format: date-time
 
     #[serde(rename = "size", skip_serializing_if = "Option::is_none")]
-    pub size: Option<f64>, // number (size in bytes)
+    pub size: Option<u64>, // number (size in bytes)
 
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<NotifyStatusType>, // { errorReasonCode, errorReasonText, pctComplete, 1 more... }
@@ -104,6 +104,14 @@ pub struct Video {
 
     #[serde(rename = "watermark", skip_serializing_if = "Option::is_none")]
     pub watermark: Option<Watermark>, // Watermark
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PublicDetails {
+    title: String,
+    share_link: String,
+    channel_link: String,
+    logo: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

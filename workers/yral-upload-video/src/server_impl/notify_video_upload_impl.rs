@@ -7,6 +7,7 @@ use worker::console_log;
 
 use crate::{
     utils::{
+        events::Warehouse,
         individual_user_canister::PostDetailsFromFrontend,
         types::{NotifyRequestPayload, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY},
     },
@@ -55,6 +56,7 @@ pub fn verify_webhook_signature(
     }
 }
 pub async fn notify_video_upload_impl(
+    events: Warehouse,
     req_data: String,
     headers: HeaderMap,
     webhook_secret_key: String,
@@ -68,7 +70,11 @@ pub async fn notify_video_upload_impl(
 
     verify_webhook_signature(webhook_secret_key, webhook_signature, req_data)?;
 
-    if notify_req_paylod.status.state.eq("error") {
+    if notify_req_paylod
+        .status
+        .state
+        .is_some_and(|state| state.eq("error"))
+    {
         return Err(notify_req_paylod
             .status
             .err_reason_text
@@ -91,5 +97,11 @@ pub async fn notify_video_upload_impl(
 
     let post_details: PostDetailsFromFrontend = serde_json::from_str(post_details_string)?;
 
-    upload_video_to_canister(notify_req_paylod.uid, delegated_identity_wire, post_details).await
+    upload_video_to_canister(
+        events,
+        notify_req_paylod.uid,
+        delegated_identity_wire,
+        post_details,
+    )
+    .await
 }

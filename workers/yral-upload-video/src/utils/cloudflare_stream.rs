@@ -5,7 +5,7 @@ use axum::http::{header, HeaderMap};
 use chrono::DateTime;
 use ic_agent::export::reqwest;
 use serde::{Deserialize, Serialize};
-use worker::{Date, Url};
+use worker::{console_log, Date, Url};
 
 use crate::utils::types::{
     DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
