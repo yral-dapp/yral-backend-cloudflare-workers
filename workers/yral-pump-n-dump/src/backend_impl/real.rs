@@ -3,13 +3,13 @@ use std::error::Error;
 use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
-    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1},
+    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1, Result14, SessionType},
     sns_ledger::{Account, TransferArg, TransferResult},
 };
 
 use crate::admin_cans::AdminCans;
 
-use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
+use super::{GameBackendImpl, UserCanisterDetails, UserStateBackendImpl, WsBackendImpl};
 
 fn to_worker_error(e: impl Error) -> worker::Error {
     worker::Error::RustError(e.to_string())
@@ -36,6 +36,26 @@ impl GameBackendImpl for AdminCans {
             .map_err(to_worker_error)?;
 
         from_can_res(res)
+    }
+
+    async fn user_canister_details(&self, user_canister: Principal) -> Result<UserCanisterDetails> {
+        let user = self.individual_user(user_canister).await;
+
+        let profile_details = user
+            .get_profile_details_v_2()
+            .await
+            .map_err(to_worker_error)?;
+
+        let session_type_res = user.get_session_type().await.map_err(to_worker_error)?;
+        let session_type = match session_type_res {
+            Result14::Ok(session_type) => session_type,
+            Result14::Err(e) => return Err(worker::Error::RustError(e)),
+        };
+
+        Ok(UserCanisterDetails {
+            principal_id: profile_details.principal_id,
+            is_registered: session_type == SessionType::RegisteredSession,
+        })
     }
 }
 

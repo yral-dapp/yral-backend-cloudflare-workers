@@ -4,7 +4,7 @@ use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStat
 
 use crate::consts::GDOLLR_TO_E8S;
 
-use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
+use super::{GameBackendImpl, UserCanisterDetails, UserStateBackendImpl, WsBackendImpl};
 
 #[derive(Clone)]
 pub struct NoOpGameBackend;
@@ -17,6 +17,16 @@ impl GameBackendImpl for NoOpGameBackend {
         _amount: Nat,
     ) -> Result<()> {
         Ok(())
+    }
+
+    async fn user_canister_details(
+        &self,
+        _user_canister: Principal,
+    ) -> Result<UserCanisterDetails> {
+        Ok(UserCanisterDetails {
+            principal_id: Principal::anonymous(),
+            is_registered: false,
+        })
     }
 }
 
