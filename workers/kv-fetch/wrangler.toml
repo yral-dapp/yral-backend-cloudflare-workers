@@ -7,7 +7,7 @@ command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 ENVIRONMENT = "production"
-PUBLIC_KEY = "MCowBQYDK2VwAyEAKqYnyZmyfTP4dRGbwjhPsoTD6lbHZy+qR5tFrlmiwjk="
+PUBLIC_KEY = "MCowBQYDK2VwAyEAkgZSitUOp3nYWK2NzErK9YRAEpq+wApn/EQuTzUHVkY="
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
