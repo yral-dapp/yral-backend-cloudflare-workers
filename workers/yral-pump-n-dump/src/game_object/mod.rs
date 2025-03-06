@@ -9,7 +9,7 @@ use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, DecrementReq, StateDiff},
-    utils::{storage::SafeStorage, RequestInitBuilder},
+    utils::{metrics, storage::SafeStorage, CfMetricTx, RequestInitBuilder},
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -20,6 +20,7 @@ use pump_n_dump_common::{
 };
 use wasm_bindgen_futures::spawn_local;
 use worker::*;
+use yral_metrics::metrics::tides_turned::TidesTurned;
 
 #[durable_object]
 pub struct GameState {
@@ -34,6 +35,7 @@ pub struct GameState {
     bets: Option<HashMap<Principal, [u64; 2]>>,
     round: Option<u64>,
     backend: GameBackend,
+    metrics: CfMetricTx,
 }
 
 struct GameObjReq {
@@ -317,16 +319,10 @@ impl GameState {
 
         let pumps = self.pumps().await?;
         let dumps = self.dumps().await?;
-        let rewards = RewardIter::new(
-            pumps,
-            dumps,
-            game_creator,
-            token_root,
-            std::mem::take(self.bets().await?),
-        );
+        let bets = std::mem::take(self.bets().await?);
+        let rewards = RewardIter::new(pumps, dumps, game_creator, token_root, bets.clone());
 
         let winning_pool = pumps + dumps;
-
         // cleanup
         let mut storage = self.storage();
         storage.delete_all().await?;
@@ -345,6 +341,32 @@ impl GameState {
         };
 
         let lp_reward = rewards.liquidity_pool.clone();
+
+        let metrics = self.metrics.clone();
+        let metrics_list = bets
+            .iter()
+            .map(|(winner, bet)| {
+                let bet = bet.clone();
+                let winner = winner.clone();
+
+                TidesTurned {
+                    user_canister: winner,
+                    staked_amount: winning_pool,
+                    round_num: round,
+                    user_pumps: bet[0],
+                    user_dumps: bet[1],
+                    round_pumps: pumps,
+                    round_dumps: dumps,
+                    cumulative_pumps: total_pumps,
+                    cumulative_dumps: total_dumps,
+                    token_root,
+                }
+            })
+            .collect::<Vec<TidesTurned>>();
+        if let Err(e) = metrics.push_list("metrics_list".into(), metrics_list).await {
+            console_warn!("failed to push metrics tides_turned: {e}");
+        }
+
         let mut reward_futs = rewards
             .map(|(winner, reward)| self.send_reward_to_user(winner, reward))
             .collect::<Result<FuturesUnordered<_>>>()?;
@@ -358,6 +380,7 @@ impl GameState {
         });
 
         let backend = self.backend.clone();
+
         spawn_local(async move {
             if let Err(e) = backend
                 .add_dollr_to_liquidity_pool(game_creator, token_root, lp_reward)
@@ -519,6 +542,7 @@ impl DurableObject for GameState {
             cumulative_pumps: None,
             cumulative_dumps: None,
             round: None,
+            metrics: metrics(),
         }
     }
 
