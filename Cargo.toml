@@ -6,6 +6,7 @@ members = [
     "workers/yral-onchain-backend",
     "workers/icpump_token_cleanup",
     "workers/kv-fetch",
+    "workers/yral-upload-video"
 ]
 resolver = "2"
 
