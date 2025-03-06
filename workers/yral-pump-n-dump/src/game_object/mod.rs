@@ -319,13 +319,8 @@ impl GameState {
 
         let pumps = self.pumps().await?;
         let dumps = self.dumps().await?;
-        let rewards = RewardIter::new(
-            pumps,
-            dumps,
-            game_creator,
-            token_root,
-            std::mem::take(self.bets().await?),
-        );
+        let bets = std::mem::take(self.bets().await?);
+        let rewards = RewardIter::new(pumps, dumps, game_creator, token_root, bets.clone());
 
         let winning_pool = pumps + dumps;
         // cleanup
@@ -347,52 +342,30 @@ impl GameState {
 
         let lp_reward = rewards.liquidity_pool.clone();
 
-        let bets = std::mem::take(self.bets().await?);
-        let mut metrics_fut = bets
+        let metrics = self.metrics.clone();
+        let metrics_list = bets
             .iter()
             .map(|(winner, bet)| {
                 let bet = bet.clone();
                 let winner = winner.clone();
-                let metrics = self.metrics.clone();
-                let backend = self.backend.clone();
 
-                async move {
-                    let user_canister_details = backend
-                        .user_canister_details(winner)
-                        .await
-                        .map_err(|e| worker::Error::RustError(e.to_string()))?;
-
-                    let user_principal = user_canister_details.principal_id;
-                    let is_registered = user_canister_details.is_registered;
-
-                    metrics
-                        .push(TidesTurned {
-                            user_principal,
-                            user_canister: winner,
-                            is_registered,
-                            staked_amount: winning_pool,
-                            round_num: round,
-                            user_pumps: bet[0],
-                            user_dumps: bet[1],
-                            round_pumps: pumps,
-                            round_dumps: dumps,
-                            cumulative_pumps: total_pumps,
-                            cumulative_dumps: total_dumps,
-                            token_root,
-                        })
-                        .await
-                        .map_err(|e| worker::Error::RustError(e.to_string()))
+                TidesTurned {
+                    user_canister: winner,
+                    staked_amount: winning_pool,
+                    round_num: round,
+                    user_pumps: bet[0],
+                    user_dumps: bet[1],
+                    round_pumps: pumps,
+                    round_dumps: dumps,
+                    cumulative_pumps: total_pumps,
+                    cumulative_dumps: total_dumps,
+                    token_root,
                 }
             })
-            .collect::<FuturesUnordered<_>>();
-
-        spawn_local(async move {
-            while let Some(res) = metrics_fut.next().await {
-                if let Err(e) = res {
-                    console_warn!("failed to push metrics tides_turned: {e}")
-                }
-            }
-        });
+            .collect::<Vec<TidesTurned>>();
+        if let Err(e) = metrics.push_list("metrics_list".into(), metrics_list).await {
+            console_warn!("failed to push metrics tides_turned: {e}");
+        }
 
         let mut reward_futs = rewards
             .map(|(winner, reward)| self.send_reward_to_user(winner, reward))

@@ -37,26 +37,6 @@ impl GameBackendImpl for AdminCans {
 
         from_can_res(res)
     }
-
-    async fn user_canister_details(&self, user_canister: Principal) -> Result<UserCanisterDetails> {
-        let user = self.individual_user(user_canister).await;
-
-        let profile_details = user
-            .get_profile_details_v_2()
-            .await
-            .map_err(to_worker_error)?;
-
-        let session_type_res = user.get_session_type().await.map_err(to_worker_error)?;
-        let session_type = match session_type_res {
-            Result14::Ok(session_type) => session_type,
-            Result14::Err(e) => return Err(worker::Error::RustError(e)),
-        };
-
-        Ok(UserCanisterDetails {
-            principal_id: profile_details.principal_id,
-            is_registered: session_type == SessionType::RegisteredSession,
-        })
-    }
 }
 
 impl UserStateBackendImpl for AdminCans {

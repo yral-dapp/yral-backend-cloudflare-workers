@@ -46,6 +46,9 @@ yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev 
     "sns-ledger",
 ] }
 pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", package = "yral-pump-n-dump-common" }
-yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "7f4c6e218b7da01cda78814dce598188b93db97c", default-features = false, features = [
+# yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
+#     "js",
+# ] }
+yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "bb6650b4acd66692313ef0aea7c03ff9ae0a80b4", default-features = false, features = [
     "js",
 ] }

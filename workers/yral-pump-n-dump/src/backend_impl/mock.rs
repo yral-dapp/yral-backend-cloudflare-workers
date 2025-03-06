@@ -18,16 +18,6 @@ impl GameBackendImpl for NoOpGameBackend {
     ) -> Result<()> {
         Ok(())
     }
-
-    async fn user_canister_details(
-        &self,
-        _user_canister: Principal,
-    ) -> Result<UserCanisterDetails> {
-        Ok(UserCanisterDetails {
-            principal_id: Principal::anonymous(),
-            is_registered: false,
-        })
-    }
 }
 
 #[derive(Clone)]

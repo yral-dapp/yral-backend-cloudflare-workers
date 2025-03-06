@@ -25,8 +25,6 @@ pub(crate) trait GameBackendImpl {
         token_root: Principal,
         amount: Nat,
     ) -> Result<()>;
-
-    async fn user_canister_details(&self, user_canister: Principal) -> Result<UserCanisterDetails>;
 }
 
 #[enum_dispatch]
