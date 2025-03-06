@@ -12,11 +12,6 @@ use crate::{
     utils::{env_kind, RunEnv},
 };
 
-pub struct UserCanisterDetails {
-    pub principal_id: Principal,
-    pub is_registered: bool,
-}
-
 #[enum_dispatch]
 pub(crate) trait GameBackendImpl {
     async fn add_dollr_to_liquidity_pool(

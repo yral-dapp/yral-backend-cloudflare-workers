@@ -4,7 +4,7 @@ use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStat
 
 use crate::consts::GDOLLR_TO_E8S;
 
-use super::{GameBackendImpl, UserCanisterDetails, UserStateBackendImpl, WsBackendImpl};
+use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
 
 #[derive(Clone)]
 pub struct NoOpGameBackend;

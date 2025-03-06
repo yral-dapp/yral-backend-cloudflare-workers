@@ -9,7 +9,7 @@ use yral_canisters_client::{
 
 use crate::admin_cans::AdminCans;
 
-use super::{GameBackendImpl, UserCanisterDetails, UserStateBackendImpl, WsBackendImpl};
+use super::{GameBackendImpl, UserStateBackendImpl, WsBackendImpl};
 
 fn to_worker_error(e: impl Error) -> worker::Error {
     worker::Error::RustError(e.to_string())
