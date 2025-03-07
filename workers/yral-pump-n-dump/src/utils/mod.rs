@@ -1,8 +1,8 @@
 pub mod storage;
 
-use candid::Principal;
+use candid::{Nat, Principal};
 use serde::Serialize;
-use wasm_bindgen_futures::wasm_bindgen;
+use wasm_bindgen_futures::{js_sys::Math, wasm_bindgen};
 use worker::{Headers, Method, RequestInit, Result, RouteContext, Stub};
 
 #[derive(Default)]
@@ -85,6 +85,8 @@ use yral_metrics::{
     metrics::EventSource,
 };
 
+use crate::consts::GDOLLR_TO_E8S;
+
 pub fn game_state_stub<T>(
     ctx: &RouteContext<T>,
     game_canister: Principal,
@@ -114,4 +116,13 @@ pub fn metrics() -> CfMetricTx {
     };
 
     LocalMetricTx::new(EventSource::PumpNDumpWorker, ev_tx)
+}
+
+/// returns a random quantity between 90 and 100 CENTS
+pub fn random_airdrop_reward() -> Nat {
+    let min = 90.0;
+    let max = 100.0;
+    let reward = (Math::random() * (max - min + 1.) + min).floor() as u64;
+
+    Nat::from(reward) * GDOLLR_TO_E8S
 }

@@ -106,11 +106,11 @@ impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
         storage.put(&self.key, &v).await
     }
 
-    pub async fn update(
+    pub async fn update<R>(
         &mut self,
         storage: &mut SafeStorage,
-        updater: impl FnOnce(&mut T),
-    ) -> worker::Result<()> {
+        updater: impl FnOnce(&mut T) -> R,
+    ) -> worker::Result<R> {
         let mutated_val = if let Some(v) = self.hot_cache.as_mut() {
             v
         } else {
@@ -121,11 +121,11 @@ impl<T: Serialize + DeserializeOwned + Clone + Debug> StorageCell<T> {
             self.hot_cache = Some(stored_val);
             self.hot_cache.as_mut().unwrap()
         };
-        updater(mutated_val);
+        let res = updater(mutated_val);
 
         storage.put(&self.key, mutated_val).await?;
 
-        Ok(())
+        Ok(res)
     }
 
     pub async fn read(&mut self, storage: &SafeStorage) -> Result<&T> {

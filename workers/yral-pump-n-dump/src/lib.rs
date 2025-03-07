@@ -1,5 +1,6 @@
 mod admin_cans;
 mod agent_wrapper;
+mod airdrop_counter;
 mod backend_impl;
 mod consts;
 mod game_object;
@@ -198,6 +199,16 @@ async fn uncommitted_games(ctx: RouteContext<()>) -> Result<Response> {
         .await
 }
 
+async fn try_claim_airdrop(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister = parse_principal!(ctx, "user_canister");
+
+    let state_stub = user_state_stub(&ctx, user_canister)?;
+
+    state_stub
+        .fetch_with_str(&format!("http://fake_url.com/airdrop/{user_canister}"))
+        .await
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -231,6 +242,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/earnings/:user_canister", |_req, ctx| net_earnings(ctx))
         .get_async("/uncommitted_games/:user_canister", |_req, ctx| {
             uncommitted_games(ctx)
+        })
+        .get_async("/airdrop/:user_canister", |_req, ctx| {
+            try_claim_airdrop(ctx)
         })
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)

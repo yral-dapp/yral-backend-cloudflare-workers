@@ -19,6 +19,7 @@ pub const DOLR_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 0, 0, 
 pub const MAXIMUM_DOLR_TREASURY_PER_DAY_PER_USER: u64 = 100 * 1e8 as u64;
 // 400 DOLLR
 pub const USER_INDEX_FUND_AMOUNT: u64 = 400 * 1e8 as u64;
+pub const MAX_AIRDROP_USERS_PER_DAY: u32 = 9999;
 
 pub const fn agent_url() -> &'static str {
     match env_kind() {
