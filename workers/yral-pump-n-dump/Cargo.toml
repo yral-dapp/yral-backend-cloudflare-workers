@@ -49,6 +49,6 @@ pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "
 # yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
 #     "js",
 # ] }
-yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "fd4822e50386f5133cc00f179f1a8e328e35b3d4", default-features = false, features = [
+yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "6fc3fcf8e6feb8b611d561024c9f9170c39ab35c", default-features = false, features = [
     "js",
 ] }
