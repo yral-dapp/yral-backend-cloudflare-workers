@@ -19,3 +19,6 @@ new_classes = ["AirdropCounter"]
 
 [build]
 command = "cargo install -q worker-build && worker-build --profiling"
+
+
+tail_consumers = [{ service = "tail-worker-yral" }]
