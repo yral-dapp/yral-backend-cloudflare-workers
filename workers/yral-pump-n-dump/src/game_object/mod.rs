@@ -360,6 +360,8 @@ impl GameState {
                     cumulative_pumps: total_pumps,
                     cumulative_dumps: total_dumps,
                     token_root,
+                    page_location: "https://pumpdump.wtf/".to_string(),
+                    host: "pumpdump.wtf".to_string(),
                 }
             })
             .collect::<Vec<TidesTurned>>();

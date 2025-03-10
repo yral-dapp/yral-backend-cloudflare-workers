@@ -4750,7 +4750,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=bb6650b4acd66692313ef0aea7c03ff9ae0a80b4#bb6650b4acd66692313ef0aea7c03ff9ae0a80b4"
+source = "git+https://github.com/yral-dapp/yral-common?rev=fd4822e50386f5133cc00f179f1a8e328e35b3d4#fd4822e50386f5133cc00f179f1a8e328e35b3d4"
 dependencies = [
  "candid",
  "log",
