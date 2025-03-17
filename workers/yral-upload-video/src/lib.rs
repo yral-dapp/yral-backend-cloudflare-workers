@@ -145,7 +145,7 @@ pub async fn update_metadata(
     match result {
         Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
         Err(e) => {
-            console_error!("Error processing Notify: {}", e.to_string());
+            console_error!("Error updating metadata: {}", e.to_string());
             Json(APIResponse::from(Err(e)))
         }
     }
