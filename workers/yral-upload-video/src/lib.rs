@@ -136,14 +136,19 @@ pub async fn update_metadata(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateMetadataRequest>,
 ) -> Json<APIResponse<()>> {
-    Json(APIResponse::from(
-        update_metadata_impl(
-            &app_state.cloudflare_stream,
-            app_state.events.clone(),
-            payload,
-        )
-        .await,
-    ))
+    let result = update_metadata_impl(
+        &app_state.cloudflare_stream,
+        app_state.events.clone(),
+        payload,
+    )
+    .await;
+    match result {
+        Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
+        Err(e) => {
+            console_error!("Error processing Notify: {}", e.to_string());
+            Json(APIResponse::from(Err(e)))
+        }
+    }
 }
 
 #[debug_handler]
