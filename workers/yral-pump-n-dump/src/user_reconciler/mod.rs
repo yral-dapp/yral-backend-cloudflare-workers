@@ -1,9 +1,7 @@
-mod airdrop_fuse;
 mod treasury;
 
 use std::collections::HashSet;
 
-use airdrop_fuse::AirdropFuse;
 use candid::{Nat, Principal};
 use num_bigint::{BigInt, ToBigInt};
 use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, UncommittedGameInfo};
@@ -17,7 +15,7 @@ use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
     utils::{
-        metrics, parse_principal, random_airdrop_reward,
+        metrics, parse_principal,
         storage::{SafeStorage, StorageCell},
         CfMetricTx,
     },
@@ -79,7 +77,6 @@ pub struct UserEphemeralState {
     backend: StateBackend,
     dolr_treasury: DolrTreasury,
     metrics: CfMetricTx,
-    airdrop_fuse: StorageCell<AirdropFuse>,
 }
 
 impl UserEphemeralState {
@@ -434,31 +431,6 @@ impl UserEphemeralState {
 
         Ok(on_chain_earnings + off_chain_earnings)
     }
-
-    async fn try_claim_airdrop(&mut self) -> Result<Response> {
-        let mut storage = self.storage();
-        let can_claim = self
-            .airdrop_fuse
-            .update(&mut storage, |fuse| fuse.can_claim())
-            .await?;
-        if !can_claim {
-            return Response::error("airdrop not available. try tomorrow", 400);
-        }
-
-        let airdrop_ctr = self.env.durable_object("AIRDROP_COUNTER")?;
-        let airdrop_ctr = airdrop_ctr.id_from_name("default")?.get_stub()?;
-
-        let res = airdrop_ctr
-            .fetch_with_str("http://fake_url.com/decrement")
-            .await?;
-        if res.status_code() != 200 {
-            return Ok(res);
-        }
-        self.add_state_diff(StateDiff::CreatorReward(random_airdrop_reward()))
-            .await?;
-
-        Response::ok("done")
-    }
 }
 
 #[durable_object]
@@ -481,7 +453,6 @@ impl DurableObject for UserEphemeralState {
             dolr_treasury: DolrTreasury::default(),
             backend,
             metrics: metrics(),
-            airdrop_fuse: StorageCell::new("airdrop_fuse", AirdropFuse::default),
         }
     }
 
@@ -583,14 +554,6 @@ impl DurableObject for UserEphemeralState {
                     Response::from_json(&pending_games)
                 },
             )
-            .get_async("/airdrop/:user_canister", |_req, ctx| async move {
-                let user_canister = parse_principal!(ctx, "user_canister");
-
-                let this = ctx.data;
-                this.set_user_canister(user_canister).await?;
-
-                this.try_claim_airdrop().await
-            })
             .run(req, env)
             .await
     }
