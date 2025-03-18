@@ -70,7 +70,7 @@ impl EventService {
         })
         .to_string();
 
-        let path = "api/v1/events/";
+        let path = "api/v1/events";
 
         let response = self
             .reqwest_client
@@ -117,7 +117,7 @@ impl EventService {
         })
         .to_string();
 
-        let path = "api/v1/events/";
+        let path = "api/v1/events";
 
         let response = self
             .reqwest_client
