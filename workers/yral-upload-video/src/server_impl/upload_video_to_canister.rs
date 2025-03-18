@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ic_agent::{identity::DelegatedIdentity, Agent};
-use worker::console_log;
+use worker::{console_log, console_warn};
 
 use crate::utils::{
     events::Warehouse,
@@ -39,6 +39,7 @@ pub async fn upload_video_to_canister(
 
     match upload_video_to_canister_inner(&individual_user_service, post_details.clone()).await {
         Ok(post_id) => {
+            console_log!("video upload to canister successful");
             events
                 .send_video_upload_successful_event(
                     video_uid,
@@ -53,6 +54,7 @@ pub async fn upload_video_to_canister(
                 .await
         }
         Err(e) => {
+            console_warn!("video upload to canister unsuccessful");
             events
                 .send_video_event_unsuccessful(
                     e.to_string(),
