@@ -9,6 +9,7 @@ use crate::utils::{
         PostDetailsFromFrontend, Result2, Service as IndividualUserCanisterService,
     },
     types::{DelegatedIdentityWire, NotifyRequestPayload},
+    user_ic_agent,
 };
 
 pub async fn upload_video_to_canister(
@@ -23,6 +24,8 @@ pub async fn upload_video_to_canister(
         .with_url("https://ic0.app")
         .build()?;
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
+
+    console_log!("user principal id {}", ic_agent.get_principal()?);
 
     let user_details = yral_metadata_client
         .get_user_metadata(ic_agent.get_principal()?)
