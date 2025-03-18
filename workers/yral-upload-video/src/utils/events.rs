@@ -17,7 +17,8 @@ pub struct Warehouse {
 
 impl Warehouse {
     pub fn with_auth_token(auth_token: String) -> Self {
-        let client = Client::new("https://icp-off-chain-agent.fly.dev:443".to_string());
+        let off_chain_agent_url = "https://pr-161-yral-dapp-off-chain-agent.fly.dev:443";
+        let client = Client::new(off_chain_agent_url.to_string());
 
         Self {
             client: WarehouseEventsClient::new(client),
