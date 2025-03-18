@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use ic_agent::{identity::DelegatedIdentity, Agent};
+use worker::console_log;
 
 use crate::utils::{
     events::Warehouse,
@@ -27,6 +28,8 @@ pub async fn upload_video_to_canister(
         .get_user_metadata(ic_agent.get_principal()?)
         .await?
         .ok_or::<Box<dyn Error>>("user canister not found".into())?;
+
+    console_log!("user canister id {}", user_details.user_canister_id);
 
     let individual_user_service =
         IndividualUserCanisterService(user_details.user_canister_id, &ic_agent);
