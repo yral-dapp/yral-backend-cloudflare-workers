@@ -1,6 +1,5 @@
 use axum::body::Body;
 use axum::response::IntoResponse;
-use ic_agent::agent::status::Status;
 use ic_agent::identity::DelegatedIdentity;
 use server_impl::notify_video_upload_impl::notify_video_upload_impl;
 use server_impl::upload_video_to_canister::upload_video_to_canister;
@@ -10,11 +9,10 @@ use std::result::Result;
 use std::{error::Error, sync::Arc};
 use utils::individual_user_canister::PostDetailsFromFrontend;
 use utils::types::{
-    DelegatedIdentityWire, DirectUploadResult, NotifyRequestPayload, DELEGATED_IDENTITY_KEY,
-    POST_DETAILS_KEY,
+    DelegatedIdentityWire, DirectUploadResult, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
 
-use axum::http::{HeaderMap, Response, StatusCode};
+use axum::http::{HeaderMap, StatusCode};
 use axum::{
     debug_handler,
     routing::{get, post},
@@ -23,7 +21,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
-use utils::events::Warehouse;
+use utils::events::{EventService, Warehouse};
 use worker::Result as WorkerResult;
 use worker::*;
 
@@ -95,6 +93,7 @@ pub struct AppState {
     pub cloudflare_stream: CloudflareStream,
     pub events: Warehouse,
     pub webhook_secret_key: String,
+    pub event_rest_service: EventService,
 }
 
 impl AppState {
@@ -107,8 +106,9 @@ impl AppState {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
         Ok(Self {
             cloudflare_stream,
-            events: Warehouse::with_auth_token(off_chain_auth_token),
+            events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
             webhook_secret_key,
+            event_rest_service: EventService::with_auth_token(off_chain_auth_token),
         })
     }
 }
@@ -166,7 +166,7 @@ pub async fn update_metadata(
 ) -> APIResponse<()> {
     let result = update_metadata_impl(
         &app_state.cloudflare_stream,
-        app_state.events.clone(),
+        app_state.event_rest_service.clone(),
         payload,
     )
     .await;
@@ -192,7 +192,7 @@ pub async fn notify_video_upload(
 ) -> APIResponse<()> {
     console_log!("Notify Recieved: {:?}", &payload);
     let result = notify_video_upload_impl(
-        app_state.events.clone(),
+        app_state.event_rest_service.clone(),
         payload,
         headers,
         app_state.webhook_secret_key.clone(),
@@ -213,7 +213,7 @@ pub async fn notify_video_upload(
 
 async fn update_metadata_impl(
     cloudflare_stream: &CloudflareStream,
-    events: Warehouse,
+    events: EventService,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
     let video_details = cloudflare_stream

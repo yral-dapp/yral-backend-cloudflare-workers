@@ -4,7 +4,7 @@ use ic_agent::{identity::DelegatedIdentity, Agent};
 use worker::{console_log, console_warn};
 
 use crate::utils::{
-    events::Warehouse,
+    events::{EventService, Warehouse},
     individual_user_canister::{
         PostDetailsFromFrontend, Result2, Service as IndividualUserCanisterService,
     },
@@ -13,7 +13,7 @@ use crate::utils::{
 };
 
 pub async fn upload_video_to_canister(
-    mut events: Warehouse,
+    mut events: EventService,
     video_uid: String,
     delegated_identity_wire: DelegatedIdentityWire,
     post_details: PostDetailsFromFrontend,
@@ -40,6 +40,7 @@ pub async fn upload_video_to_canister(
     match upload_video_to_canister_inner(&individual_user_service, post_details.clone()).await {
         Ok(post_id) => {
             console_log!("video upload to canister successful");
+
             events
                 .send_video_upload_successful_event(
                     video_uid,

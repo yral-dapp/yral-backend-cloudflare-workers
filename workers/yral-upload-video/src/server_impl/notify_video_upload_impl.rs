@@ -7,7 +7,7 @@ use worker::console_log;
 
 use crate::{
     utils::{
-        events::Warehouse,
+        events::{EventService, Warehouse},
         individual_user_canister::PostDetailsFromFrontend,
         types::{NotifyRequestPayload, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY},
     },
@@ -56,7 +56,7 @@ pub fn verify_webhook_signature(
     }
 }
 pub async fn notify_video_upload_impl(
-    events: Warehouse,
+    events: EventService,
     req_data: String,
     headers: HeaderMap,
     webhook_secret_key: String,
