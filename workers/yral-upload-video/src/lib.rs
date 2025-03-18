@@ -1,3 +1,7 @@
+use axum::body::Body;
+use axum::response::IntoResponse;
+use ic_agent::agent::status::Status;
+use ic_agent::identity::DelegatedIdentity;
 use server_impl::notify_video_upload_impl::notify_video_upload_impl;
 use server_impl::upload_video_to_canister::upload_video_to_canister;
 use std::collections::HashMap;
@@ -10,7 +14,7 @@ use utils::types::{
     POST_DETAILS_KEY,
 };
 
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, Response, StatusCode};
 use axum::{
     debug_handler,
     routing::{get, post},
@@ -28,11 +32,34 @@ use axum::extract::State;
 pub mod server_impl;
 pub mod utils;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct APIResponse<T> {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct APIResponse<T>
+where
+    T: Clone + Serialize,
+{
     pub message: Option<String>,
     pub success: bool,
     pub data: Option<T>,
+}
+
+impl<T> IntoResponse for APIResponse<T>
+where
+    T: Clone + Serialize,
+{
+    fn into_response(self) -> axum::response::Response<Body> {
+        let mut response_body = Json(APIResponse {
+            message: self.message.clone(),
+            success: self.success,
+            data: self.data,
+        })
+        .into_response();
+
+        if !self.success {
+            *response_body.status_mut() = StatusCode::BAD_REQUEST;
+        }
+
+        response_body
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,6 +72,7 @@ pub struct VideoKvStoreValue {
 impl<T, E> From<Result<T, E>> for APIResponse<T>
 where
     E: Display,
+    T: Clone + Serialize,
 {
     fn from(value: Result<T, E>) -> Self {
         match value {
@@ -135,20 +163,24 @@ struct UpdateMetadataRequest {
 pub async fn update_metadata(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateMetadataRequest>,
-) -> Json<APIResponse<()>> {
+) -> APIResponse<()> {
     let result = update_metadata_impl(
         &app_state.cloudflare_stream,
         app_state.events.clone(),
         payload,
     )
     .await;
-    match result {
-        Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
-        Err(e) => {
-            console_error!("Error updating metadata: {}", e.to_string());
-            Json(APIResponse::from(Err(e)))
-        }
+
+    let api_response: APIResponse<()> = result.into();
+
+    if !api_response.success {
+        console_error!(
+            "error updating metadata {}",
+            &api_response.message.as_ref().unwrap_or(&String::from(""))
+        )
     }
+
+    api_response
 }
 
 #[debug_handler]
@@ -157,7 +189,7 @@ pub async fn notify_video_upload(
     State(app_state): State<Arc<AppState>>,
     headers: HeaderMap,
     payload: String,
-) -> Json<APIResponse<()>> {
+) -> APIResponse<()> {
     console_log!("Notify Recieved: {:?}", &payload);
     let result = notify_video_upload_impl(
         app_state.events.clone(),
@@ -167,13 +199,16 @@ pub async fn notify_video_upload(
     )
     .await;
 
-    match result {
-        Ok(()) => Json(APIResponse::from(Ok::<(), Box<dyn Error>>(()))),
-        Err(e) => {
-            console_error!("Error processing Notify: {}", e.to_string());
-            Json(APIResponse::from(Err(e)))
-        }
+    let api_response: APIResponse<()> = result.into();
+
+    if !api_response.success {
+        console_error!(
+            "error updating notify {}",
+            api_response.message.as_ref().unwrap_or(&String::from(""))
+        );
     }
+
+    api_response
 }
 
 async fn update_metadata_impl(
@@ -184,6 +219,9 @@ async fn update_metadata_impl(
     let video_details = cloudflare_stream
         .get_video_details(&req_data.video_uid)
         .await?;
+
+    let _delegated_identity =
+        DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
 
     if let Some(ready_to_stream) = video_details.ready_to_stream {
         if ready_to_stream {
@@ -218,10 +256,10 @@ async fn update_metadata_impl(
 #[worker::send]
 pub async fn get_upload_url(
     State(app_state): State<Arc<AppState>>,
-) -> Json<APIResponse<DirectUploadResult>> {
-    Json(APIResponse::from(
-        get_upload_url_impl(&app_state.cloudflare_stream).await,
-    ))
+) -> APIResponse<DirectUploadResult> {
+    get_upload_url_impl(&app_state.cloudflare_stream)
+        .await
+        .into()
 }
 
 async fn get_upload_url_impl(
