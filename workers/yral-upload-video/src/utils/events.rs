@@ -85,10 +85,11 @@ impl EventService {
         if response.status().is_success() {
             Ok(())
         } else {
+            let status = response.status();
             let error = response.text().await?;
             Err(format!(
-                "error sending video_upload_successful event. Error {}",
-                error
+                "error sending video_upload_successful event. Error {} {}",
+                status, error
             )
             .into())
         }
@@ -131,10 +132,11 @@ impl EventService {
         if response.status().is_success() {
             Ok(())
         } else {
+            let status = response.status();
             let error = response.text().await?;
             Err(format!(
-                "error sending video_upload_unsuccessful event. Error {}",
-                error
+                "error sending video_upload_successful event. Error {} {}",
+                status, error
             )
             .into())
         }
