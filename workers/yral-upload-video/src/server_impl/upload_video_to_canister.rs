@@ -1,15 +1,14 @@
 use std::error::Error;
 
 use ic_agent::{identity::DelegatedIdentity, Agent};
-use worker::{console_log, console_warn};
+use worker::{console_error, console_log};
 
 use crate::utils::{
-    events::{EventService, Warehouse},
+    events::EventService,
     individual_user_canister::{
         PostDetailsFromFrontend, Result2, Service as IndividualUserCanisterService,
     },
-    types::{DelegatedIdentityWire, NotifyRequestPayload},
-    user_ic_agent,
+    types::DelegatedIdentityWire,
 };
 
 pub async fn upload_video_to_canister(
@@ -41,7 +40,7 @@ pub async fn upload_video_to_canister(
         Ok(post_id) => {
             console_log!("video upload to canister successful");
 
-            events
+            let _ = events
                 .send_video_upload_successful_event(
                     video_uid,
                     post_details.hashtags.len(),
@@ -53,10 +52,21 @@ pub async fn upload_video_to_canister(
                     user_details.user_name,
                 )
                 .await
+                .inspect_err(|e| {
+                    console_error!(
+                        "Error sending video successful event. Error {}",
+                        e.to_string()
+                    )
+                });
+
+            Ok(())
         }
         Err(e) => {
-            console_warn!("video upload to canister unsuccessful");
-            events
+            console_error!(
+                "video upload to canister unsuccessful.Error {}",
+                e.to_string()
+            );
+            let _ = events
                 .send_video_event_unsuccessful(
                     e.to_string(),
                     post_details.hashtags.len(),
@@ -67,6 +77,14 @@ pub async fn upload_video_to_canister(
                     user_details.user_canister_id,
                 )
                 .await
+                .inspect_err(|e| {
+                    console_error!(
+                        "Error sending video unsuccessful event. Error {}",
+                        e.to_string()
+                    )
+                });
+
+            Err(e)
         }
     }
 }

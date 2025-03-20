@@ -158,16 +158,12 @@ async fn queue(
     _: Context,
 ) -> Result<(), Box<dyn Error>> {
     let cloudflare_stream_client = CloudflareStream::new(
-        env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
-            .unwrap()
-            .to_string(),
-        env.secret("CLOUDFLARE_STREAM_API_TOKEN")
-            .unwrap()
-            .to_string(),
+        env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")?.to_string(),
+        env.secret("CLOUDFLARE_STREAM_API_TOKEN")?.to_string(),
     )?;
 
     let events_rest_service =
-        EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string());
+        EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
     for message in message_batch.messages()? {
         process_message(message, &cloudflare_stream_client, &events_rest_service).await;
@@ -204,18 +200,22 @@ pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
-) -> Result<(), Box<dyn Error>> {
+) {
     let video_uid = message.body();
-    let video_details = cloudflare_stream_client
-        .get_video_details(video_uid)
-        .await
-        .inspect_err(|_e| message.ack())?;
+    let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
+
+    if let Err(e) = video_details_result.as_ref() {
+        console_error!("Error {}", e.to_string());
+        message.retry();
+        return;
+    }
+
+    let video_details = video_details_result.unwrap();
 
     let is_video_ready = is_video_ready(&video_details);
 
     match is_video_ready {
         Ok((true, _)) => {
-            //todo upload video to canister
             let meta = video_details.meta.as_ref();
             let result = extract_fields_from_video_meta_and_upload_video(
                 video_uid.to_string(),
@@ -250,7 +250,6 @@ pub async fn process_message(
             message.retry();
         }
     };
-    Ok(())
 }
 
 pub async fn extract_fields_from_video_meta_and_upload_video(
