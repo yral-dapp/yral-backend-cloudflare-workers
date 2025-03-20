@@ -45,7 +45,7 @@ impl EventService {
     }
 
     pub async fn send_video_upload_successful_event(
-        &mut self,
+        &self,
         video_uid: String,
         hashtags_len: usize,
         is_nsfw: bool,
@@ -96,7 +96,7 @@ impl EventService {
     }
 
     pub async fn send_video_event_unsuccessful(
-        &mut self,
+        &self,
         error: String,
         hashtags_len: usize,
         is_nsfw: bool,

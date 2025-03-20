@@ -1,7 +1,6 @@
 use axum::body::Body;
 use axum::response::IntoResponse;
 use ic_agent::identity::DelegatedIdentity;
-use server_impl::notify_video_upload_impl::notify_video_upload_impl;
 use server_impl::upload_video_to_canister::upload_video_to_canister;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -9,10 +8,10 @@ use std::result::Result;
 use std::{error::Error, sync::Arc};
 use utils::individual_user_canister::PostDetailsFromFrontend;
 use utils::types::{
-    DelegatedIdentityWire, DirectUploadResult, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
+    DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
 
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::{
     debug_handler,
     routing::{get, post},
@@ -94,6 +93,7 @@ pub struct AppState {
     pub events: Warehouse,
     pub webhook_secret_key: String,
     pub event_rest_service: EventService,
+    pub upload_video_queue: Queue,
 }
 
 impl AppState {
@@ -102,6 +102,7 @@ impl AppState {
         cloudflare_api_token: String,
         webhook_secret_key: String,
         off_chain_auth_token: String,
+        upload_video_queue: Queue,
     ) -> Result<Self, Box<dyn Error>> {
         let cloudflare_stream = CloudflareStream::new(clouflare_account_id, cloudflare_api_token)?;
         Ok(Self {
@@ -109,11 +110,14 @@ impl AppState {
             events: Warehouse::with_auth_token(off_chain_auth_token.clone()),
             webhook_secret_key,
             event_rest_service: EventService::with_auth_token(off_chain_auth_token),
+            upload_video_queue,
         })
     }
 }
 
 fn router(env: Env, ctx: Context) -> Router {
+    let upload_queue: Queue = env.queue("UPLOAD_VIDEO").expect("Queue binding invalid");
+
     let app_state = AppState::new(
         env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
             .unwrap()
@@ -125,6 +129,7 @@ fn router(env: Env, ctx: Context) -> Router {
             .unwrap()
             .to_string(),
         env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string(),
+        upload_queue,
     )
     .unwrap();
 
@@ -146,6 +151,137 @@ async fn fetch(
     Ok(router(env, ctx).call(req).await?)
 }
 
+#[event(queue)]
+async fn queue(
+    message_batch: MessageBatch<String>,
+    env: Env,
+    _: Context,
+) -> Result<(), Box<dyn Error>> {
+    let cloudflare_stream_client = CloudflareStream::new(
+        env.secret("CLOUDFLARE_STREAM_ACCOUNT_ID")
+            .unwrap()
+            .to_string(),
+        env.secret("CLOUDFLARE_STREAM_API_TOKEN")
+            .unwrap()
+            .to_string(),
+    )?;
+
+    let events_rest_service =
+        EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN").unwrap().to_string());
+
+    for message in message_batch.messages()? {
+        process_message(message, &cloudflare_stream_client, &events_rest_service).await;
+    }
+
+    Ok(())
+}
+
+fn is_video_ready(video_details: &Video) -> Result<(bool, String), Box<dyn Error>> {
+    let video_status = video_details
+        .status
+        .as_ref()
+        .ok_or("video status not found")?;
+
+    let video_state = video_status.state.as_ref().ok_or("video state not found")?;
+
+    if video_state.eq("error") {
+        Ok((
+            false,
+            video_status
+                .err_reason_text
+                .as_ref()
+                .cloned()
+                .unwrap_or_default(),
+        ))
+    } else if video_state.eq("ready") {
+        Ok((true, String::new()))
+    } else {
+        Err("video still processing".into())
+    }
+}
+
+pub async fn process_message(
+    message: Message<String>,
+    cloudflare_stream_client: &CloudflareStream,
+    events_rest_service: &EventService,
+) -> Result<(), Box<dyn Error>> {
+    let video_uid = message.body();
+    let video_details = cloudflare_stream_client
+        .get_video_details(video_uid)
+        .await
+        .inspect_err(|_e| message.ack())?;
+
+    let is_video_ready = is_video_ready(&video_details);
+
+    match is_video_ready {
+        Ok((true, _)) => {
+            //todo upload video to canister
+            let meta = video_details.meta.as_ref();
+            let result = extract_fields_from_video_meta_and_upload_video(
+                video_uid.to_string(),
+                meta,
+                events_rest_service,
+            )
+            .await;
+
+            if let Err(e) = result {
+                console_error!(
+                    "Error uploading video {} to canister {}",
+                    video_uid,
+                    e.to_string()
+                );
+                message.retry()
+            } else {
+                message.ack();
+            }
+        }
+        Ok((false, err)) => {
+            //todo send ack and don't retry
+            console_error!(
+                "Error processing video {} on cloudflare. Error {}",
+                video_uid,
+                err
+            );
+            message.ack();
+        }
+        Err(e) => {
+            //todo send retry
+            console_error!("Error extracting video status. Error {}", e.to_string());
+            message.retry();
+        }
+    };
+    Ok(())
+}
+
+pub async fn extract_fields_from_video_meta_and_upload_video(
+    video_uid: String,
+    meta: Option<&HashMap<String, String>>,
+    events: &EventService,
+) -> Result<(), Box<dyn Error>> {
+    let meta = meta.ok_or("meta not found")?;
+    let delegated_identity_string = meta
+        .get(DELEGATED_IDENTITY_KEY)
+        .ok_or("delegated identity not found")?;
+
+    let delegated_identity_wire: DelegatedIdentityWire =
+        serde_json::from_str(delegated_identity_string)?;
+
+    let post_details_from_frontend_string = meta
+        .get(POST_DETAILS_KEY)
+        .ok_or("post details not found in meta")?;
+
+    let post_details_from_frontend: PostDetailsFromFrontend =
+        serde_json::from_str(post_details_from_frontend_string)?;
+
+    upload_video_to_canister(
+        events,
+        video_uid,
+        delegated_identity_wire,
+        post_details_from_frontend,
+    )
+    .await
+}
+
 pub async fn root() -> &'static str {
     "Hello Axum!"
 }
@@ -164,12 +300,8 @@ pub async fn update_metadata(
     State(app_state): State<Arc<AppState>>,
     Json(payload): Json<UpdateMetadataRequest>,
 ) -> APIResponse<()> {
-    let result = update_metadata_impl(
-        &app_state.cloudflare_stream,
-        app_state.event_rest_service.clone(),
-        payload,
-    )
-    .await;
+    let video_uid = payload.video_uid.clone();
+    let result = update_metadata_impl(&app_state.cloudflare_stream, payload).await;
 
     let api_response: APIResponse<()> = result.into();
 
@@ -180,60 +312,33 @@ pub async fn update_metadata(
         )
     }
 
-    api_response
-}
+    // upload video uid
+    let queue_send_result = app_state.upload_video_queue.send(video_uid).await;
 
-#[debug_handler]
-#[worker::send]
-pub async fn notify_video_upload(
-    State(app_state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    payload: String,
-) -> APIResponse<()> {
-    console_log!("Notify Recieved: {:?}", &payload);
-    let result = notify_video_upload_impl(
-        app_state.event_rest_service.clone(),
-        payload,
-        headers,
-        app_state.webhook_secret_key.clone(),
-    )
-    .await;
-
-    let api_response: APIResponse<()> = result.into();
-
-    if !api_response.success {
+    if let Err(e) = queue_send_result {
         console_error!(
-            "error updating notify {}",
-            api_response.message.as_ref().unwrap_or(&String::from(""))
+            "Error sending message to upload queue. Error {}",
+            e.to_string()
         );
     }
 
     api_response
 }
 
+#[debug_handler]
+#[worker::send]
+pub async fn notify_video_upload(payload: String) -> APIResponse<()> {
+    console_log!("Notify Recieved: {:?}", &payload);
+
+    Ok::<(), Box<dyn Error>>(()).into()
+}
+
 async fn update_metadata_impl(
     cloudflare_stream: &CloudflareStream,
-    events: EventService,
     mut req_data: UpdateMetadataRequest,
 ) -> Result<(), Box<dyn Error>> {
-    let video_details = cloudflare_stream
-        .get_video_details(&req_data.video_uid)
-        .await?;
-
     let _delegated_identity =
         DelegatedIdentity::try_from(req_data.delegated_identity_wire.clone())?;
-
-    if let Some(ready_to_stream) = video_details.ready_to_stream {
-        if ready_to_stream {
-            return upload_video_to_canister(
-                events,
-                req_data.video_uid,
-                req_data.delegated_identity_wire,
-                req_data.post_details,
-            )
-            .await;
-        }
-    }
 
     req_data.meta.insert(
         DELEGATED_IDENTITY_KEY.to_string(),

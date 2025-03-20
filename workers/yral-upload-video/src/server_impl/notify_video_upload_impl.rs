@@ -7,7 +7,7 @@ use worker::console_log;
 
 use crate::{
     utils::{
-        events::{EventService, Warehouse},
+        events::EventService,
         individual_user_canister::PostDetailsFromFrontend,
         types::{NotifyRequestPayload, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY},
     },
@@ -98,7 +98,7 @@ pub async fn notify_video_upload_impl(
     let post_details: PostDetailsFromFrontend = serde_json::from_str(post_details_string)?;
 
     upload_video_to_canister(
-        events,
+        &events,
         notify_req_paylod.uid,
         delegated_identity_wire,
         post_details,

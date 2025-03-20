@@ -4,3 +4,11 @@ compatibility_date = "2025-02-10"
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
+
+[[queues.producers]]
+binding = "UPLOAD_VIDEO" 
+queue = "upload-video"
+
+[[queues.consumers]]
+queue = "upload-video"
+retry_delay = 120

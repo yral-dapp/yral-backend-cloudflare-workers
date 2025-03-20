@@ -13,7 +13,7 @@ use crate::utils::{
 };
 
 pub async fn upload_video_to_canister(
-    mut events: EventService,
+    events: &EventService,
     video_uid: String,
     delegated_identity_wire: DelegatedIdentityWire,
     post_details: PostDetailsFromFrontend,
