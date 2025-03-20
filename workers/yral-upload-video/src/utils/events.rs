@@ -29,7 +29,7 @@ pub struct EventService {
 
 impl EventService {
     pub fn with_auth_token(auth_token: String) -> Self {
-        let base_url = "https://pr-162-yral-dapp-off-chain-agent.fly.dev/";
+        let base_url = "https://icp-off-chain-agent.fly.dev/";
         let mut headers = HeaderMap::new();
         headers.insert(
             header::AUTHORIZATION,
