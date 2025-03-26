@@ -104,15 +104,12 @@ async fn upload_video_to_canister_and_mark_video_for_download(
     individual_user_canister_service: &IndividualUserCanisterService<'_>,
     post_details: PostDetailsFromFrontend,
 ) -> Result<u64, Box<dyn Error>> {
-    let adding_post_to_canister_result = individual_user_canister_service
-        .add_post_v_2(post_details)
-        .await?;
-    let result = match adding_post_to_canister_result {
-        Result2::Ok(post_id) => Ok(post_id),
-        Result2::Err(e) => Err(e.into()),
-    };
+    let result =
+        upload_video_to_canister_inner(individual_user_canister_service, post_details).await;
 
-    cloudflare_stream.mark_video_as_downloadable(video_uid);
+    cloudflare_stream
+        .mark_video_as_downloadable(video_uid)
+        .await?;
 
     result
 }
