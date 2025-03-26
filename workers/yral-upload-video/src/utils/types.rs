@@ -232,6 +232,11 @@ pub struct StreamResponseType<T> {
     pub result: Option<T>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct CreateDownloads {}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateDownloadResult {}
 /// Delegated identity that can be serialized over the wire
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DelegatedIdentityWire {

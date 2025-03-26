@@ -11,7 +11,7 @@ use crate::utils::types::{
     DirectUploadRequestType, ResponseInfo, StreamResponseType, WatermarkRequest, CF_WATERMARK_UID,
 };
 
-use super::types::{DirectUploadResult, Video};
+use super::types::{CreateDownloadResult, CreateDownloads, DirectUploadResult, Video};
 
 #[derive(Clone)]
 pub struct CloudflareStream {
@@ -132,6 +132,44 @@ impl CloudflareStream {
             .await?;
 
         let response_data: EditVideoResponseType = response.json().await?;
+
+        if response_data.success {
+            Ok(())
+        } else {
+            let mut error_message =
+                response_data
+                    .errors
+                    .iter()
+                    .fold(String::new(), |mut val, next| {
+                        val.push_str("\n");
+
+                        val.push_str(&next.message);
+                        val
+                    });
+
+            if let Some(error_messages) = response_data.messages {
+                error_message = error_messages.iter().fold(error_message, |mut val, next| {
+                    val.push_str(&next.message);
+                    val.push('\n');
+                    val
+                })
+            }
+
+            Err(format!("Error: {}", error_message).into())
+        }
+    }
+
+    pub async fn mark_video_as_downloadable(&self, video_uid: &str) -> Result<(), Box<dyn Error>> {
+        let url = Url::join(&self.base_url, &format!("{}/downloads", video_uid))?;
+
+        let response = self
+            .client
+            .post(url)
+            .json(&CreateDownloads {})
+            .send()
+            .await?;
+
+        let response_data: StreamResponseType<CreateDownloadResult> = response.json().await?;
 
         if response_data.success {
             Ok(())

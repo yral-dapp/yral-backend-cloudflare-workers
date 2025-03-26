@@ -19,7 +19,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tower_service::Service;
-use utils::cloudflare_stream::CloudflareStream;
+use utils::cloudflare_stream::{self, CloudflareStream};
 use utils::events::{EventService, Warehouse};
 use worker::Result as WorkerResult;
 use worker::*;
@@ -218,6 +218,7 @@ pub async fn process_message(
         Ok((true, _)) => {
             let meta = video_details.meta.as_ref();
             let result = extract_fields_from_video_meta_and_upload_video(
+                &cloudflare_stream_client,
                 video_uid.to_string(),
                 meta,
                 events_rest_service,
@@ -236,7 +237,6 @@ pub async fn process_message(
             }
         }
         Ok((false, err)) => {
-            //todo send ack and don't retry
             console_error!(
                 "Error processing video {} on cloudflare. Error {}",
                 video_uid,
@@ -245,7 +245,6 @@ pub async fn process_message(
             message.ack();
         }
         Err(e) => {
-            //todo send retry
             console_error!("Error extracting video status. Error {}", e.to_string());
             message.retry();
         }
@@ -253,6 +252,7 @@ pub async fn process_message(
 }
 
 pub async fn extract_fields_from_video_meta_and_upload_video(
+    cloudflare_stream: &CloudflareStream,
     video_uid: String,
     meta: Option<&HashMap<String, String>>,
     events: &EventService,
@@ -273,6 +273,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         serde_json::from_str(post_details_from_frontend_string)?;
 
     upload_video_to_canister(
+        cloudflare_stream,
         events,
         video_uid,
         delegated_identity_wire,
