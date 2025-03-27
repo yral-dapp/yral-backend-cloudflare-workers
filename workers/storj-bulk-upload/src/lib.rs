@@ -14,6 +14,7 @@ use admin::AdminCanisters;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
+use nsfw::IsNsfw;
 use serde_json::json;
 use worker::{
     console_debug, console_error, console_log, event, query, Context as WorkerContext, D1Database,
@@ -76,6 +77,7 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
     let added = AtomicU64::new(0);
     let skipped = AtomicU64::new(0);
     let unknown = AtomicU64::new(0);
+    let maybe_nsfw = AtomicU64::new(0);
 
     // the operation is io bound, so this number can be optimized to saturate
     // the network of the machine running the worker
@@ -85,6 +87,7 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
             let added = &added;
             let skipped = &skipped;
             let unknown = &unknown;
+            let maybe_nsfw = &maybe_nsfw;
             let work_items = &work_items;
             async move {
                 console_debug!("{item:#?}");
@@ -103,6 +106,9 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
                 match data.meta()?.and_then(|meta| meta.changed_db) {
                     Some(true) => {
                         added.fetch_add(1, Ordering::Relaxed);
+                        if item.is_nsfw == IsNsfw::Maybe {
+                            maybe_nsfw.fetch_add(1, Ordering::Relaxed);
+                        }
                     },
                     Some(false) => {
                         skipped.fetch_add(1, Ordering::Relaxed);
@@ -128,6 +134,7 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
         "added": added.load(Ordering::SeqCst),
         "skipped": skipped.load(Ordering::SeqCst),
         "unknown": unknown.load(Ordering::SeqCst),
+        "maybe_nsfw": maybe_nsfw.load(Ordering::SeqCst),
         "total": {
             "before": count,
             "after": get_item_count_in_staging(&work_items).await?
