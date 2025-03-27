@@ -3,5 +3,6 @@ CREATE TABLE work_items (
     post_id INT NOT NULL, -- for reference
     video_id VARCHAR(255) NOT NULL,
     publisher_user_id VARCHAR(255) NOT NULL,
+    is_nsfw TEXT CHECK(is_nsfw IN ('yes', 'no', 'maybe')) NOT NULL,
     PRIMARY KEY (video_id) -- doesn't matter; we wont be indexing into this table anyways
 );

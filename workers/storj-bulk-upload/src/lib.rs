@@ -1,4 +1,5 @@
 mod admin;
+mod nsfw;
 mod posts;
 
 use std::{
@@ -15,8 +16,8 @@ use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use serde_json::json;
 use worker::{
-    console_error, console_log, event, query, Context as WorkerContext, D1Database, Env, Request,
-    Response, Result,
+    console_debug, console_error, console_log, event, query, Context as WorkerContext, D1Database,
+    Env, Request, Response, Result,
 };
 
 #[event(start)]
@@ -86,12 +87,14 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
             let unknown = &unknown;
             let work_items = &work_items;
             async move {
+                console_debug!("{item:#?}");
                 let q = query!(
                     work_items,
-                    "INSERT OR IGNORE INTO work_items (post_id, video_id, publisher_user_id) VALUES (?1, ?2, ?3)",
+                    "INSERT OR IGNORE INTO work_items (post_id, video_id, publisher_user_id, is_nsfw) VALUES (?1, ?2, ?3, ?4)",
                     &item.post_id,
                     &item.video_id,
                     &item.publisher_user_id,
+                    &item.is_nsfw.to_string()
                 )
                 .inspect_err(|err| console_error!("Couldn't prepare statement: {err}"))?;
                 let data = q.run()

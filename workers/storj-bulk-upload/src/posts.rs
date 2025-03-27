@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::Context;
 use chrono::{DateTime, Utc};
@@ -8,14 +8,17 @@ use yral_canisters_client::individual_user_template::{
     GetPostsOfUserProfileError, IndividualUserTemplate, PostDetailsForFrontend,
 };
 
-use crate::admin::AdminCanisters;
+use crate::{
+    admin::AdminCanisters,
+    nsfw::{IsNsfw, NsfwResolver},
+};
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Default)]
+#[derive(Debug)]
 pub(crate) struct Item {
     pub(crate) video_id: String,
     pub(crate) publisher_user_id: String,
     pub(crate) post_id: u64,
-    // TODO: extra metadata
+    pub(crate) is_nsfw: IsNsfw, // TODO: extra metadata
 }
 
 /// loads all posts for the given user and buffers into a vec before returning
@@ -92,13 +95,34 @@ pub(crate) async fn load_items<'a>(
                     .inspect_err(|err| console_error!("{err}"))
             }
         })
+        .and_then(|list| async move {
+            let ids: Vec<_> = list.iter().map(|post| post.video_uid.clone()).collect();
+
+            let is_nsfw_search: BTreeMap<String, IsNsfw> =
+                NsfwResolver::is_nsfw(&ids).await?.into_iter().collect();
+
+            let res: Vec<_> = list
+                .into_iter()
+                .map(|post| {
+                    (
+                        *is_nsfw_search
+                            .get(&post.video_uid)
+                            .expect("NsfwResolver to always return nsfw status"),
+                        post,
+                    )
+                })
+                .collect();
+
+            Ok(res)
+        })
         .and_then(|list| future::ok(stream::iter(list).map(anyhow::Ok)))
         .try_flatten_unordered(None)
         .map(|post| {
-            post.map(|post| Item {
+            post.map(|(is_nsfw, post)| Item {
                 video_id: post.video_uid,
                 publisher_user_id: post.created_by_user_principal_id.to_text(),
                 post_id: post.id,
+                is_nsfw,
             })
         });
 
