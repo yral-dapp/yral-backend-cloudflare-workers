@@ -18,7 +18,7 @@ LOW_PASS_TIMESTAMP = "2025-03-26T12:25:05Z" # based on https://yral.com/profile/
 [[d1_databases]]
 binding = "STORJ_STAGING_DB"
 database_name = "STORJ_STAGING_DB"
-database_id = "af8e795a-10a8-41f2-ab9f-38f4503ed878"
+database_id = "e5228f46-0028-40e7-9604-1bb79be90997"
 
 [env.development.vars]
 ENVIRONMENT = "development"
@@ -27,5 +27,5 @@ LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z"
 [[env.development.d1_databases]]
 binding = "STORJ_STAGING_DB"
 database_name = "STORJ_STAGING_DB"
-database_id = "af8e795a-10a8-41f2-ab9f-38f4503ed878"
+database_id = "e5228f46-0028-40e7-9604-1bb79be90997"
 
