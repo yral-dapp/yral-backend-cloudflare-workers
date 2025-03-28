@@ -17,8 +17,8 @@ use futures::{StreamExt, TryStreamExt};
 use nsfw::IsNsfw;
 use serde_json::json;
 use worker::{
-    console_debug, console_error, console_log, event, query, Context as WorkerContext, D1Database,
-    Env, Request, Response, Result,
+    console_error, console_log, event, query, Context as WorkerContext, D1Database, Env, Request,
+    Response, Result,
 };
 
 #[event(start)]
@@ -90,7 +90,6 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
             let maybe_nsfw = &maybe_nsfw;
             let work_items = &work_items;
             async move {
-                console_debug!("{item:#?}");
                 let q = query!(
                     work_items,
                     "INSERT OR IGNORE INTO work_items (post_id, video_id, publisher_user_id, is_nsfw) VALUES (?1, ?2, ?3, ?4)",
