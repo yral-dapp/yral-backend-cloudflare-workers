@@ -23,4 +23,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/storj-bulk-upload
-          preCommands: wrangler d1 migrations apply --remote STORJ_STAGING_DB 
+          # preCommands: wrangler d1 migrations apply --remote STORJ_STAGING_DB 
