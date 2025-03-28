@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [build]
 # TODO: Move this build command to build.sh, which distinguishes between local and prod builds
-command = "cargo install -q worker-build && worker-build --release --features 'storj-bulk-upload/local'"
+command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 ENVIRONMENT = "production"
