@@ -83,7 +83,6 @@ async fn fetch(_req: Request, env: Env, _ctx: WorkerContext) -> Result<Response>
     // the network of the machine running the worker
     const CONCURRENCY_FACTOR: usize = 100;
     let res = item_stream
-        .take(500)
         .try_for_each_concurrent(CONCURRENCY_FACTOR, |item| {
             let added = &added;
             let skipped = &skipped;
