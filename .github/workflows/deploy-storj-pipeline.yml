@@ -2,6 +2,9 @@ name: Deploy Storj pipeline worker
 
 on:
   workflow_dispatch:
+  pull_request:
+    types:
+      - synchronize
   push:
     branches:
       - main
@@ -20,3 +23,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/storj-bulk-upload
+          command: |
+            d1 migrations apply --remote STORJ_STAGING_DB
+            deploy
