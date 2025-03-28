@@ -1,6 +1,7 @@
 name = "storj-bulk-upload"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-01"
+tail_consumers = [{ service = "tail-worker-yral" }]
 
 [build]
 # TODO: Move this build command to build.sh, which distinguishes between local and prod builds
@@ -28,4 +29,5 @@ LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z"
 binding = "STORJ_STAGING_DB"
 database_name = "STORJ_STAGING_DB"
 database_id = "e5228f46-0028-40e7-9604-1bb79be90997"
+
 
