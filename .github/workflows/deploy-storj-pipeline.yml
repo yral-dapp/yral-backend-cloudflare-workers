@@ -14,7 +14,7 @@ on:
 
 jobs:
   deploy-worker:
-    name: Deploy kv-fetch
+    name: Deploy storj
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
           workingDirectory: workers/storj-bulk-upload
-          command: |
-            d1 migrations apply --remote STORJ_STAGING_DB
-            deploy
+          preCommands: wrangler d1 migrations apply --remote STORJ_STAGING_DB 
