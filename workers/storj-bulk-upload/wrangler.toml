@@ -13,7 +13,7 @@ ENVIRONMENT = "production"
 # must be RFC3339
 # must be UTC
 # example value:
-# LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z"
+LOW_PASS_TIMESTAMP = "2025-03-26T12:25:05Z" # based on https://yral.com/profile/fx7qa-2aaaa-aaaal-ahovq-cai/post/0
 
 [[d1_databases]]
 binding = "STORJ_STAGING_DB"
