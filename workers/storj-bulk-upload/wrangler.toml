@@ -1,0 +1,33 @@
+name = "storj-bulk-upload"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+tail_consumers = [{ service = "tail-worker-yral" }]
+
+[build]
+# TODO: Move this build command to build.sh, which distinguishes between local and prod builds
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+ENVIRONMENT = "production"
+# the filter timestamp must be set from the dashboard
+# all posts under this timestamp will be duplicated (non-inclusively)
+# must be RFC3339
+# must be UTC
+# example value:
+LOW_PASS_TIMESTAMP = "2025-03-26T12:25:05Z" # based on https://yral.com/profile/fx7qa-2aaaa-aaaal-ahovq-cai/post/0
+
+[[d1_databases]]
+binding = "STORJ_STAGING_DB"
+database_name = "STORJ_STAGING_DB"
+database_id = "e5228f46-0028-40e7-9604-1bb79be90997"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOW_PASS_TIMESTAMP = "2024-12-31T00:00:00Z" 
+
+[[env.development.d1_databases]]
+binding = "STORJ_STAGING_DB"
+database_name = "STORJ_STAGING_DB"
+database_id = "e5228f46-0028-40e7-9604-1bb79be90997"
+
+

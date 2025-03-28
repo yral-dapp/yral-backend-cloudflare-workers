@@ -1,0 +1,38 @@
+[package]
+name = "storj-bulk-upload"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker = { workspace = true, features = ["d1"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+cfg-if = "0.1.2"
+console_error_panic_hook.workspace = true
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", version = "0.1.0", features = ["backend"] }
+yral-canisters-common = { git = "https://github.com/yral-dapp/yral-common", default-features = false, version = "0.1.0" }
+yral-types = { git = "https://github.com/yral-dapp/yral-common", version = "0.1.0" }
+ic-agent = { version = "0.38.1", default-features = false, features = ["pem", "wasm-bindgen"] }
+k256 = { version = "0.13.4", default-features = false, features = [
+    "jwk",
+] }
+yral-testcontainers = { git = "https://github.com/yral-dapp/yral-testcontainers", rev = "7438ba7cb281e7f195cf81f2a8532f63ce005771", optional = true }
+getrandom = { version = "0.2.15", features = ["js"] }
+futures.workspace = true
+anyhow = "1.0.95"
+chrono = "0.4.39"
+reqwest = { version = "0.12.15", features = ["rustls-tls"] }
+
+[features]
+local = ["yral-canisters-common/local"]
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
