@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - update_global_cache_job
     paths:
       - "workers/global-feed-cache-job/**"
       - ".github/workflows/deploy-global-feed-cache-job.yml"
