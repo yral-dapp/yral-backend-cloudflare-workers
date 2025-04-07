@@ -4,3 +4,4 @@ node_modules
 **/.wrangler
 **/build
 **/node_modules
+**/.DS_Store
