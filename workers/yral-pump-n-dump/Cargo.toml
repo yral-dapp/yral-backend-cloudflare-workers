@@ -1,0 +1,54 @@
+[package]
+name = "yral-pump-n-dump"
+version = "0.1.0"
+edition = "2021"
+authors = ["rupansh <rupanshsekar@hotmail.com>"]
+
+[package.metadata.release]
+release = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# workspace deps
+worker.workspace = true
+worker-macros.workspace = true
+console_error_panic_hook.workspace = true
+serde.workspace = true
+futures.workspace = true
+serde-wasm-bindgen.workspace = true
+serde_json.workspace = true
+wasm-bindgen-futures.workspace = true
+rmp-serde.workspace = true
+serde_bytes.workspace = true
+
+# crate specific stuff
+enum_dispatch = "0.3.13"
+ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
+getrandom = { version = "0.2.15", features = ["js"] }
+candid = "0.10.11"
+num-bigint = "0.4.6"
+uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
+k256 = "0.13.4"
+ciborium = "0.2.2"
+
+# yral specific stuff
+yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }
+yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = [
+    "ic-git",
+    "wasm-bindgen",
+] }
+# yral-canisters-client = { path = "../../../yral-common/canisters-client", features = ["backend", "sns-ledger"] }
+# pump-n-dump-common = { path = "../../../yral-common/pump-n-dump-common", package = "yral-pump-n-dump-common" }
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", features = [
+    "backend",
+    "sns-ledger",
+] }
+pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", package = "yral-pump-n-dump-common" }
+# yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
+#     "js",
+# ] }
+yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "6fc3fcf8e6feb8b611d561024c9f9170c39ab35c", default-features = false, features = [
+    "js",
+] }
