@@ -1,5 +1,14 @@
 [workspace]
-members = [ "workers/global-feed-cache-job", "workers/sample-worker", "workers/yral-ml-feed-cache","workers/yral-onchain-backend", "workers/icpump_token_cleanup", "workers/yral-pump-n-dump"]
+members = [
+    "workers/global-feed-cache-job",
+    "workers/sample-worker",
+    "workers/yral-ml-feed-cache",
+    "workers/yral-onchain-backend",
+    "workers/icpump_token_cleanup",
+    "workers/kv-fetch",
+    "workers/yral-upload-video",
+    "workers/yral-pump-n-dump"
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -15,3 +24,4 @@ ic-agent = "0.39.1"
 getrandom = { version = "0.2", features = ["js"] }
 rmp-serde = "1.3.0"
 serde_bytes = "0.11"
+jsonwebtoken = { version = "9.3.0", features = ["use_pem"] }
