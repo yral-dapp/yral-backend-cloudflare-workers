@@ -84,7 +84,13 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 .await?
                 .unwrap_or_default();
 
-            let json_data = serde_json::to_string(&items)?;
+            let filtered_items = items
+                .into_iter()
+                .skip(start)
+                .take(limit)
+                .collect::<Vec<CustomMlFeedCacheItem>>();
+
+            let json_data = serde_json::to_string(&filtered_items)?;
 
             return Response::ok(json_data);
         })

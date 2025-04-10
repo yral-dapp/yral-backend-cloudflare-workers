@@ -8,8 +8,8 @@ pub async fn scheduled_event(_event: ScheduledEvent, env: Env, _ctx: ScheduleCon
 
     // Create a new request
     let req = Request::new(
-        "https://icp-off-chain-agent.fly.dev/update-global-ml-feed-cache",
-        Method::Get,
+        "https://yral-ml-feed-server.fly.dev/api/v1/feed/global-cache/clean",
+        Method::Post,
     )
     .unwrap();
 
@@ -17,17 +17,20 @@ pub async fn scheduled_event(_event: ScheduledEvent, env: Env, _ctx: ScheduleCon
     match Fetch::Request(req).send().await {
         Ok(resp) => {
             // Log the response status
-            console_log!("Request completed with status: {}", resp.status_code());
+            console_log!(
+                "Clean Request completed with status: {}",
+                resp.status_code()
+            );
         }
         Err(e) => {
-            console_error!("Request failed: {}", e);
+            console_error!("Clean Request failed: {}", e);
         }
     }
 
-    // Create a new request for NSFW cache
+    // Create a new request
     let req = Request::new(
-        "https://icp-off-chain-agent.fly.dev/update-global-ml-feed-cache-nsfw",
-        Method::Get,
+        "https://yral-ml-feed-server.fly.dev/api/v1/feed/global-cache/mixed",
+        Method::Post,
     )
     .unwrap();
 
@@ -35,10 +38,31 @@ pub async fn scheduled_event(_event: ScheduledEvent, env: Env, _ctx: ScheduleCon
     match Fetch::Request(req).send().await {
         Ok(resp) => {
             // Log the response status
-            console_log!("Request completed with status: {}", resp.status_code());
+            console_log!(
+                "Mixed Request completed with status: {}",
+                resp.status_code()
+            );
         }
         Err(e) => {
-            console_error!("Request failed: {}", e);
+            console_error!("Mixed Request failed: {}", e);
+        }
+    }
+
+    // Create a new request
+    let req = Request::new(
+        "https://yral-ml-feed-server.fly.dev/api/v1/feed/global-cache/nsfw",
+        Method::Post,
+    )
+    .unwrap();
+
+    // Make the HTTP request using Fetch API
+    match Fetch::Request(req).send().await {
+        Ok(resp) => {
+            // Log the response status
+            console_log!("NSFW Request completed with status: {}", resp.status_code());
+        }
+        Err(e) => {
+            console_error!("NSFW Request failed: {}", e);
         }
     }
 }
