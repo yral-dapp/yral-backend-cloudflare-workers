@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::result::Result;
 use std::{error::Error, sync::Arc};
+use tower_http::cors::CorsLayer;
 use utils::individual_user_canister::PostDetailsFromFrontend;
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
@@ -138,6 +139,7 @@ fn router(env: Env, ctx: Context) -> Router {
         .route("/get_upload_url", get(get_upload_url))
         .route("/update_metadata", post(update_metadata))
         .route("/notify", post(notify_video_upload))
+        .layer(CorsLayer::permissive())
         .with_state(Arc::new(app_state))
 }
 
