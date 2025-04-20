@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 authors = ["rupansh <rupanshsekar@hotmail.com>"]
 
+[[bin]]
+name = "jwt-secret-gen"
+path = "src/jwt-gen.rs"
+
 [package.metadata.release]
 release = false
 
@@ -32,6 +36,7 @@ num-bigint = "0.4.6"
 uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
 k256 = "0.13.4"
 ciborium = "0.2.2"
+jsonwebtoken = "9"
 
 # yral specific stuff
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }
@@ -41,14 +46,14 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
 ] }
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = ["backend", "sns-ledger"] }
 # pump-n-dump-common = { path = "../../../yral-common/pump-n-dump-common", package = "yral-pump-n-dump-common" }
-yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", features = [
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "622d40b6311617d6e27c66d986e1c147b15998d6", features = [
     "backend",
     "sns-ledger",
 ] }
-pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", package = "yral-pump-n-dump-common" }
+pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "622d40b6311617d6e27c66d986e1c147b15998d6", package = "yral-pump-n-dump-common" }
 # yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
 #     "js",
 # ] }
-yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "6fc3fcf8e6feb8b611d561024c9f9170c39ab35c", default-features = false, features = [
+yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "622d40b6311617d6e27c66d986e1c147b15998d6", default-features = false, features = [
     "js",
 ] }

@@ -4585,6 +4585,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
+name = "utoipa"
+version = "5.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "435c6f69ef38c9017b4b4eea965dfb91e71e53d869e896db40d1cf2441dd75c0"
+dependencies = [
+ "indexmap 2.9.0",
+ "serde",
+ "serde_json",
+ "utoipa-gen",
+]
+
+[[package]]
+name = "utoipa-gen"
+version = "5.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a77d306bc75294fd52f3e99b13ece67c02c1a2789190a6f31d32f736624326f7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "uuid"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5137,7 +5160,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=78c1ec2888c0705dfc875b47c2f31206eb954fec#78c1ec2888c0705dfc875b47c2f31206eb954fec"
+source = "git+https://github.com/yral-dapp/yral-common?rev=622d40b6311617d6e27c66d986e1c147b15998d6#622d40b6311617d6e27c66d986e1c147b15998d6"
 dependencies = [
  "anyhow",
  "candid",
@@ -5237,7 +5260,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=6fc3fcf8e6feb8b611d561024c9f9170c39ab35c#6fc3fcf8e6feb8b611d561024c9f9170c39ab35c"
+source = "git+https://github.com/yral-dapp/yral-common?rev=622d40b6311617d6e27c66d986e1c147b15998d6#622d40b6311617d6e27c66d986e1c147b15998d6"
 dependencies = [
  "candid",
  "log",
@@ -5245,6 +5268,7 @@ dependencies = [
  "serde",
  "serde_with 3.12.0",
  "trait-variant",
+ "utoipa",
  "wasm-bindgen-futures",
  "web-time",
 ]
@@ -5271,6 +5295,7 @@ dependencies = [
  "futures",
  "getrandom 0.2.15",
  "ic-agent 0.38.2",
+ "jsonwebtoken",
  "k256",
  "num-bigint",
  "rmp-serde",
@@ -5292,7 +5317,7 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?rev=78c1ec2888c0705dfc875b47c2f31206eb954fec#78c1ec2888c0705dfc875b47c2f31206eb954fec"
+source = "git+https://github.com/yral-dapp/yral-common?rev=622d40b6311617d6e27c66d986e1c147b15998d6#622d40b6311617d6e27c66d986e1c147b15998d6"
 dependencies = [
  "candid",
  "serde",

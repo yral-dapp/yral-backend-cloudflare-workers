@@ -3,7 +3,7 @@ use std::error::Error;
 use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
-    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1},
+    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result_},
     sns_ledger::{Account, TransferArg, TransferResult},
 };
 
@@ -15,10 +15,10 @@ fn to_worker_error(e: impl Error) -> worker::Error {
     worker::Error::RustError(e.to_string())
 }
 
-fn from_can_res(r: Result1) -> worker::Result<()> {
+fn from_can_res(r: Result_) -> worker::Result<()> {
     match r {
-        Result1::Ok => Ok(()),
-        Result1::Err(e) => Err(worker::Error::RustError(e)),
+        Result_::Ok => Ok(()),
+        Result_::Err(e) => Err(worker::Error::RustError(e)),
     }
 }
 
@@ -43,6 +43,11 @@ impl UserStateBackendImpl for AdminCans {
     async fn game_balance(&self, user_canister: Principal) -> Result<BalanceInfo> {
         let user = self.individual_user(user_canister).await;
         user.pd_balance_info().await.map_err(to_worker_error)
+    }
+
+    async fn game_balance_v2(&self, user_canister: Principal) -> Result<BalanceInfo> {
+        let user = self.individual_user(user_canister).await;
+        user.pd_balance_info_v_2().await.map_err(to_worker_error)
     }
 
     async fn reconcile_user_state(

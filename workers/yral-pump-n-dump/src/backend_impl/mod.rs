@@ -26,6 +26,8 @@ pub(crate) trait GameBackendImpl {
 pub(crate) trait UserStateBackendImpl {
     async fn game_balance(&self, user_canister: Principal) -> Result<BalanceInfo>;
 
+    async fn game_balance_v2(&self, user_canister: Principal) -> Result<BalanceInfo>;
+
     async fn reconcile_user_state(
         &self,
         user_canister: Principal,
