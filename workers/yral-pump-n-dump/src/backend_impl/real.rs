@@ -3,7 +3,9 @@ use std::error::Error;
 use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
-    individual_user_template::{BalanceInfo, PumpNDumpStateDiff, Result1},
+    individual_user_template::{
+        BalanceInfo, BettingStatus, PlaceBetArg, PumpNDumpStateDiff, Result3, Result_,
+    },
     sns_ledger::{Account, TransferArg, TransferResult},
 };
 
@@ -15,10 +17,10 @@ fn to_worker_error(e: impl Error) -> worker::Error {
     worker::Error::RustError(e.to_string())
 }
 
-fn from_can_res(r: Result1) -> worker::Result<()> {
+fn from_can_res(r: Result_) -> worker::Result<()> {
     match r {
-        Result1::Ok => Ok(()),
-        Result1::Err(e) => Err(worker::Error::RustError(e)),
+        Result_::Ok => Ok(()),
+        Result_::Err(e) => Err(worker::Error::RustError(e)),
     }
 }
 
@@ -120,6 +122,27 @@ impl UserStateBackendImpl for AdminCans {
         }
 
         Ok(())
+    }
+
+    async fn bet_on_hon_post(
+        &self,
+        user_canister: Principal,
+        args: PlaceBetArg,
+    ) -> Result<BettingStatus> {
+        let user = self.individual_user(user_canister).await;
+        let res = user
+            .bet_on_currently_viewing_post_v_1(args)
+            .await
+            .map_err(to_worker_error)?;
+
+        let status = match res {
+            Result3::Ok(betting_status) => betting_status,
+            Result3::Err(err) => {
+                return Err(worker::Error::RustError(format!("betting failed: {err:?}")))
+            }
+        };
+
+        Ok(status)
     }
 }
 

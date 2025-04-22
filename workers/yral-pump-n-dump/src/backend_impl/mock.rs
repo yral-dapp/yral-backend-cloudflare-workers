@@ -1,6 +1,8 @@
 use candid::{Nat, Principal};
-use worker::Result;
-use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
+use worker::{console_debug, Result};
+use yral_canisters_client::individual_user_template::{
+    BalanceInfo, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
+};
 
 use crate::consts::GDOLLR_TO_E8S;
 
@@ -64,6 +66,16 @@ impl UserStateBackendImpl for NoOpUserState {
 
     async fn dolr_transfer(&self, _to: Principal, _amount: Nat) -> Result<()> {
         Ok(())
+    }
+
+    async fn bet_on_hon_post(
+        &self,
+        _user_canister: Principal,
+        _args: PlaceBetArg,
+    ) -> Result<BettingStatus> {
+        console_debug!("Dummy call to canister for hon bet");
+
+        Ok(BettingStatus::BettingClosed)
     }
 }
 

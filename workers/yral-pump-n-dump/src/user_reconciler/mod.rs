@@ -8,7 +8,10 @@ use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, Uncommitt
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
 use worker::*;
-use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
+use yral_canisters_client::individual_user_template::{
+    BalanceInfo, BetOnCurrentlyViewingPostError, PumpNDumpStateDiff,
+};
+use yral_canisters_common::utils::vote::HonBetArg;
 use yral_metrics::metrics::cents_withdrawal::CentsWithdrawal;
 
 use crate::{
@@ -37,6 +40,12 @@ pub struct DecrementReq {
 pub struct ClaimGdollrReq {
     pub user_canister: Principal,
     pub amount: Nat,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HonBetReq {
+    pub user_canister: Principal,
+    pub args: HonBetArg,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -82,6 +91,59 @@ pub struct UserEphemeralState {
 impl UserEphemeralState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
+    }
+
+    async fn place_hon_bet(
+        &mut self,
+        HonBetReq {
+            user_canister,
+            args,
+        }: HonBetReq,
+    ) -> Result<Response> {
+        let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // e8s
+        let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // e8s
+        let effective_balance = self.effective_balance(user_canister).await?;
+        let onchain_balance = self.backend.game_balance(user_canister).await?.balance;
+
+        if bet_amount_nat > effective_balance {
+            return Err(worker::Error::RustError(format!(
+                "betting failed: {:?}",
+                BetOnCurrentlyViewingPostError::InsufficientBalance
+            )));
+        }
+
+        if onchain_balance < bet_amount_nat {
+            // edge case, https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820474571
+            self.settle_balance(user_canister).await?;
+            let _status = self
+                .backend
+                .bet_on_hon_post(user_canister, args.into())
+                .await?;
+
+            // TODO: ideally send betting status back, but sadly `BettingStatus` is not serializable
+            return Response::ok("ok".to_string());
+        }
+
+        // fast case, avoids settling balance
+        // https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820265311
+        let mut storage = self.storage();
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta -= bet_amount_bigint.clone())
+            .await?;
+
+        // ignore result
+        let _res = self
+            .backend
+            .bet_on_hon_post(user_canister, args.into())
+            .await;
+
+        // failure on this call will cause a double negation because of the last two steps
+        // however, that seems unlikely
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta += bet_amount_bigint)
+            .await?;
+
+        Response::ok("ok".to_string())
     }
 
     async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
@@ -513,6 +575,14 @@ impl DurableObject for UserEphemeralState {
 
                 this.claim_gdollr(claim_req.user_canister, claim_req.amount)
                     .await
+            })
+            .post_async("/place_hon_bet", |mut req, ctx| async move {
+                let this = ctx.data;
+                let bet_req: HonBetReq = req.json().await?;
+
+                this.set_user_canister(bet_req.user_canister).await?;
+
+                this.place_hon_bet(bet_req).await
             })
             .get_async("/game_count/:user_canister", |_req, ctx| async move {
                 let user_canister_raw = ctx.param("user_canister").unwrap();
