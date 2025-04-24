@@ -50,9 +50,7 @@ fn verify_hon_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)>
 }
 
 async fn place_hon_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    console_debug!("request received");
     let req: VerifiableHonBetReq = serde_json::from_str(&req.text().await?)?;
-    console_debug!("request parsed");
     if let Err((msg, status)) = verify_hon_bet_req(&req) {
         return Response::error(msg, status);
     }

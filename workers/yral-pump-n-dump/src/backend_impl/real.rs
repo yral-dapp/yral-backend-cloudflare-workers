@@ -4,7 +4,8 @@ use candid::{Nat, Principal};
 use worker::Result;
 use yral_canisters_client::{
     individual_user_template::{
-        BalanceInfo, BettingStatus, PlaceBetArg, PumpNDumpStateDiff, Result3, Result_,
+        BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg,
+        PumpNDumpStateDiff, Result3, Result_,
     },
     sns_ledger::{Account, TransferArg, TransferResult},
 };
@@ -128,7 +129,7 @@ impl UserStateBackendImpl for AdminCans {
         &self,
         user_canister: Principal,
         args: PlaceBetArg,
-    ) -> Result<BettingStatus> {
+    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>> {
         let user = self.individual_user(user_canister).await;
         let res = user
             .bet_on_currently_viewing_post_v_1(args)
@@ -136,10 +137,8 @@ impl UserStateBackendImpl for AdminCans {
             .map_err(to_worker_error)?;
 
         let status = match res {
-            Result3::Ok(betting_status) => betting_status,
-            Result3::Err(err) => {
-                return Err(worker::Error::RustError(format!("betting failed: {err:?}")))
-            }
+            Result3::Ok(betting_status) => Ok(betting_status),
+            Result3::Err(err) => Err(err),
         };
 
         Ok(status)

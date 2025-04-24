@@ -6,7 +6,7 @@ use enum_dispatch::enum_dispatch;
 use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
 use yral_canisters_client::individual_user_template::{
-    BalanceInfo, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
+    BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
 };
 
 use crate::{
@@ -40,7 +40,7 @@ pub(crate) trait UserStateBackendImpl {
         &self,
         user_canister: Principal,
         args: PlaceBetArg,
-    ) -> Result<BettingStatus>;
+    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>>;
 
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 
