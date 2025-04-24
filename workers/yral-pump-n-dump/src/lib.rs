@@ -39,18 +39,20 @@ fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
 
 // TODO write an abstraction around verification
 fn verify_hon_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)> {
-    // let msg = verifiable_hon_bet_message(req.args);
+    let msg = verifiable_hon_bet_message(req.args);
 
-    // let verify_res = req.signature.clone().verify_identity(req.sender, msg);
-    // if verify_res.is_err() {
-    //     return Err(("invalid signature".into(), 401));
-    // }
+    let verify_res = req.signature.clone().verify_identity(req.sender, msg);
+    if verify_res.is_err() {
+        return Err(("invalid signature".into(), 401));
+    }
 
     Ok(())
 }
 
 async fn place_hon_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let req: VerifiableHonBetReq = req.json().await?;
+    console_debug!("request received");
+    let req: VerifiableHonBetReq = serde_json::from_str(&req.text().await?)?;
+    console_debug!("request parsed");
     if let Err((msg, status)) = verify_hon_bet_req(&req) {
         return Response::error(msg, status);
     }

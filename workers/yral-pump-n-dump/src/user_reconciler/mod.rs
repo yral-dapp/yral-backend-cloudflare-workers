@@ -100,27 +100,33 @@ impl UserEphemeralState {
             args,
         }: HonBetReq,
     ) -> Result<Response> {
-        let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // e8s
-        let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // e8s
-        let effective_balance = self.effective_balance(user_canister).await?;
-        let onchain_balance = self.backend.game_balance(user_canister).await?.balance;
+        let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // cents in e6s * 100 = cents in e8s
+        let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // cents in e6s * 100 = cents in e8s
+        let effective_balance = self.effective_balance(user_canister).await? * 100usize; // dolrs in e8s * 100 = cents in e8s
+        let onchain_balance = self.backend.game_balance(user_canister).await?.balance * 100usize; // dolrs in e8s = cents in e8s
+
+        console_debug!("bet amount (e8s): {bet_amount_nat}; effective_balance (e8s): {effective_balance}; onchain_balance (e8s): {onchain_balance}");
 
         if bet_amount_nat > effective_balance {
-            return Err(worker::Error::RustError(format!(
-                "betting failed: {:?}",
-                BetOnCurrentlyViewingPostError::InsufficientBalance
-            )));
+            return Response::error(
+                format!(
+                    "betting failed: {:?}",
+                    BetOnCurrentlyViewingPostError::InsufficientBalance
+                ),
+                400,
+            );
         }
 
         if onchain_balance < bet_amount_nat {
             // edge case, https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820474571
             self.settle_balance(user_canister).await?;
+
+            // TODO: wrap this function to return Ok(Response)
             let _status = self
                 .backend
                 .bet_on_hon_post(user_canister, args.into())
                 .await?;
 
-            // TODO: ideally send betting status back, but sadly `BettingStatus` is not serializable
             return Response::ok("ok".to_string());
         }
 
@@ -132,7 +138,7 @@ impl UserEphemeralState {
             .await?;
 
         // ignore result
-        let _res = self
+        let res = self
             .backend
             .bet_on_hon_post(user_canister, args.into())
             .await;
@@ -142,6 +148,8 @@ impl UserEphemeralState {
         self.off_chain_balance_delta
             .update(&mut storage, |delta| *delta += bet_amount_bigint)
             .await?;
+
+        // TODO: properly respond with error and bettingstatus
 
         Response::ok("ok".to_string())
     }
