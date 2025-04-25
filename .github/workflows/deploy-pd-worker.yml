@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - feat/hon-bet-with-cents
     paths:
       - "workers/yral-pump-n-dump/**"
       - ".github/workflows/deploy-pd-worker.yml"
@@ -23,7 +22,6 @@ jobs:
           with:
             apiToken: ${{ secrets.CLOUDFLARE_WORKERS_FULL_EDIT_ACCESS_INCLUDING_BINDINGS }}
             workingDirectory: workers/yral-pump-n-dump
-            command: deploy --name hon-test-yral-pump-n-dump
             secrets: |
               BACKEND_ADMIN_KEY
           env:
