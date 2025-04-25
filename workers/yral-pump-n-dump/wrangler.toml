@@ -1,4 +1,5 @@
-name = "yral-pump-n-dump"
+# TODO: change this back to prod name
+name = "hon-testyral-pump-n-dump"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-12-22"
 
