@@ -49,7 +49,7 @@ fn verify_hon_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)>
     Ok(())
 }
 
-async fn place_hon_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+async fn place_hot_or_not_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let req: VerifiableHonBetReq = serde_json::from_str(&req.text().await?)?;
     if let Err((msg, status)) = verify_hon_bet_req(&req) {
         return Response::error(msg, status);
@@ -68,7 +68,7 @@ async fn place_hon_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Respon
     };
 
     let req = Request::new_with_init(
-        "http://fake_url.com/place_hot_or_bet_bet",
+        "http://fake_url.com/place_hot_or_not_bet",
         RequestInitBuilder::default()
             .method(Method::Post)
             .json(&body)?
@@ -256,7 +256,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let res = router
         .post_async("/claim_gdollr", claim_gdollr)
-        .post_async("/place_hot_or_bet_bet", place_hon_bet)
+        .post_async("/place_hot_or_not_bet", place_hot_or_not_bet)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
         .get_async("/game_count/:user_canister", |_req, ctx| {
             user_game_count(ctx)
