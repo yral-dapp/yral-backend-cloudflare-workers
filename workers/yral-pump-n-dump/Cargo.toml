@@ -47,7 +47,6 @@ yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", bran
     "sns-ledger",
 ] }
 yral-canisters-common = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
-    "local",
     "js",
 ] }
 pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", branch = "master", package = "yral-pump-n-dump-common" }
