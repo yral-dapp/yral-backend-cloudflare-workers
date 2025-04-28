@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feat/hon-bet-with-cents
     paths:
       - "workers/yral-pump-n-dump/**"
       - ".github/workflows/deploy-pd-worker.yml"

@@ -642,7 +642,7 @@ impl DurableObject for UserEphemeralState {
                 this.claim_gdollr(claim_req.user_canister, claim_req.amount)
                     .await
             })
-            .post_async("/place_hon_bet", |mut req, ctx| async move {
+            .post_async("/place_hot_or_not_bet", |mut req, ctx| async move {
                 let this = ctx.data;
                 let bet_req: HotOrNotBetRequest = req.json().await?;
 
