@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use candid::Principal;
 use ic_agent::{identity::DelegatedIdentity, Agent};
 use worker::{console_error, console_log};
 
@@ -16,14 +17,9 @@ pub async fn upload_video_to_canister(
     cloudflare_stream: &CloudflareStream,
     events: &EventService,
     video_uid: String,
-    delegated_identity_wire: DelegatedIdentityWire,
+    ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
 ) -> Result<(), Box<dyn Error>> {
-    let delegated_identity = DelegatedIdentity::try_from(delegated_identity_wire)?;
-    let ic_agent = Agent::builder()
-        .with_identity(delegated_identity)
-        .with_url("https://ic0.app/")
-        .build()?;
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
     console_log!("user principal id {}", ic_agent.get_principal()?);

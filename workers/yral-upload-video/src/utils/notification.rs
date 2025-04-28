@@ -1,3 +1,4 @@
+use candid::Principal;
 use serde::{Deserialize, Serialize};
 use worker::{console_error, console_log};
 
@@ -13,7 +14,7 @@ pub enum NotificationType {
 
 pub async fn send_notification(
     data: NotificationType,
-    creator: Option<String>,
+    creator: Option<Principal>,
     video_uid: &str,
     notif_api_key: String,
 ) {
@@ -21,7 +22,8 @@ pub async fn send_notification(
         let client = reqwest::Client::new();
         let url = format!(
             "{}/notifications/{}/send",
-            METADATA_SERVER_URL, creator_principal
+            METADATA_SERVER_URL,
+            creator_principal.to_text()
         );
 
         let res = client

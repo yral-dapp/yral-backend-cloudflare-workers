@@ -1,4 +1,3 @@
-use crate::wasm_bindgen::JsValue;
 use axum::body::Body;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -8,23 +7,23 @@ use axum::{
     Json, Router,
 };
 use ic_agent::identity::DelegatedIdentity;
-use reqwest;
+use ic_agent::Agent;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use server_impl::upload_video_to_canister::upload_video_to_canister;
 use std::collections::HashMap;
-use std::fmt::{format, Display};
+use std::fmt::Display;
 use std::result::Result;
 use std::{error::Error, sync::Arc};
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
-use utils::cloudflare_stream::{self, CloudflareStream};
+use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
 use utils::individual_user_canister::PostDetailsFromFrontend;
 use utils::notification::{send_notification, NotificationType};
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
+use utils::user_ic_agent::create_ic_agent_from_meta;
 use worker::Result as WorkerResult;
 use worker::*;
 
@@ -208,8 +207,6 @@ fn is_video_ready(video_details: &Video) -> Result<(bool, String), Box<dyn Error
     }
 }
 
-const METADATA_SERVER_URL: &str = "https://metadata.yral.xyz";
-
 pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
@@ -229,14 +226,26 @@ pub async fn process_message(
 
     let is_video_ready = is_video_ready(&video_details);
 
+    let Ok(meta) = video_details.meta.as_ref().ok_or("meta not found") else {
+        console_error!("meta not found");
+        message.retry();
+        return;
+    };
+
+    let Ok(ic_agent) = create_ic_agent_from_meta(meta) else {
+        console_error!("error creating ic agent");
+        message.retry();
+        return;
+    };
+
     match is_video_ready {
         Ok((true, _)) => {
-            let meta = video_details.meta.as_ref();
             let result = extract_fields_from_video_meta_and_upload_video(
                 &cloudflare_stream_client,
                 video_uid.to_string(),
                 meta,
                 events_rest_service,
+                &ic_agent,
             )
             .await;
 
@@ -252,7 +261,7 @@ pub async fn process_message(
                         video_uid,
                         e.to_string()
                     )),
-                    video_details.creator,
+                    ic_agent.get_principal().ok(),
                     video_uid,
                     notif_api_key,
                 )
@@ -265,7 +274,7 @@ pub async fn process_message(
                         "Video {} uploaded successfully to canister",
                         video_uid
                     )),
-                    video_details.creator,
+                    ic_agent.get_principal().ok(),
                     video_uid,
                     notif_api_key,
                 )
@@ -285,7 +294,7 @@ pub async fn process_message(
                     "Error processing video {} on cloudflare. Error {}",
                     video_uid, err
                 )),
-                video_details.creator,
+                ic_agent.get_principal().ok(),
                 video_uid,
                 notif_api_key,
             )
@@ -301,7 +310,7 @@ pub async fn process_message(
                     "Error extracting video status. Error {}",
                     e.to_string()
                 )),
-                video_details.creator,
+                ic_agent.get_principal().ok(),
                 video_uid,
                 notif_api_key,
             )
@@ -315,17 +324,10 @@ pub async fn process_message(
 pub async fn extract_fields_from_video_meta_and_upload_video(
     cloudflare_stream: &CloudflareStream,
     video_uid: String,
-    meta: Option<&HashMap<String, String>>,
+    meta: &HashMap<String, String>,
     events: &EventService,
+    agent: &Agent,
 ) -> Result<(), Box<dyn Error>> {
-    let meta = meta.ok_or("meta not found")?;
-    let delegated_identity_string = meta
-        .get(DELEGATED_IDENTITY_KEY)
-        .ok_or("delegated identity not found")?;
-
-    let delegated_identity_wire: DelegatedIdentityWire =
-        serde_json::from_str(delegated_identity_string)?;
-
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;
@@ -337,7 +339,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         cloudflare_stream,
         events,
         video_uid,
-        delegated_identity_wire,
+        agent,
         post_details_from_frontend,
     )
     .await
