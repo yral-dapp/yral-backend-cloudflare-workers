@@ -1,5 +1,4 @@
-# TODO: revert back to original app name `yral-pump-n-dump`
-name = "hon-test-yral-pump-n-dump"
+name = "yral-pump-n-dump"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-12-22"
 
