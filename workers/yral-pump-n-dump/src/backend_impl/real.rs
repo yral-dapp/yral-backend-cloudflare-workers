@@ -125,7 +125,7 @@ impl UserStateBackendImpl for AdminCans {
         Ok(())
     }
 
-    async fn bet_on_hon_post(
+    async fn bet_on_hot_or_not_post(
         &self,
         user_canister: Principal,
         args: PlaceBetArg,

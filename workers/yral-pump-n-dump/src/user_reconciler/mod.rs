@@ -44,7 +44,7 @@ pub struct ClaimGdollrReq {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct HonBetReq {
+pub struct HotOrNotBetRequest {
     pub user_canister: Principal,
     pub args: HonBetArg,
 }
@@ -155,7 +155,10 @@ impl UserEphemeralState {
         user_canister: Principal,
         args: PlaceBetArg,
     ) -> Result<Response> {
-        let result = self.backend.bet_on_hon_post(user_canister, args).await?;
+        let result = self
+            .backend
+            .bet_on_hot_or_not_post(user_canister, args)
+            .await?;
 
         match result {
             Ok(betting_status) => {
@@ -167,10 +170,10 @@ impl UserEphemeralState {
 
     async fn place_hon_bet(
         &mut self,
-        HonBetReq {
+        HotOrNotBetRequest {
             user_canister,
             args,
-        }: HonBetReq,
+        }: HotOrNotBetRequest,
     ) -> Result<Response> {
         let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // cents in e6s * 100 = cents in e8s
         let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // cents in e6s * 100 = cents in e8s
@@ -641,7 +644,7 @@ impl DurableObject for UserEphemeralState {
             })
             .post_async("/place_hon_bet", |mut req, ctx| async move {
                 let this = ctx.data;
-                let bet_req: HonBetReq = req.json().await?;
+                let bet_req: HotOrNotBetRequest = req.json().await?;
 
                 this.set_user_canister(bet_req.user_canister).await?;
 

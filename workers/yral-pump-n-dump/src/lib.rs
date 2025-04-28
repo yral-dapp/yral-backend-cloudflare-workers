@@ -14,7 +14,7 @@ use pump_n_dump_common::{
 };
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
-use user_reconciler::{ClaimGdollrReq, HonBetReq};
+use user_reconciler::{ClaimGdollrReq, HotOrNotBetRequest};
 use utils::{game_state_stub, parse_principal, user_state_stub, RequestInitBuilder};
 use worker::*;
 use yral_canisters_common::utils::vote::{verifiable_hon_bet_message, VerifiableHonBetReq};
@@ -62,13 +62,13 @@ async fn place_hon_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Respon
 
     let user_state = user_state_stub(&ctx, user_canister)?;
 
-    let body = HonBetReq {
+    let body = HotOrNotBetRequest {
         user_canister,
         args: req.args,
     };
 
     let req = Request::new_with_init(
-        "http://fake_url.com/place_hon_bet",
+        "http://fake_url.com/place_hot_or_bet_bet",
         RequestInitBuilder::default()
             .method(Method::Post)
             .json(&body)?
@@ -256,7 +256,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let res = router
         .post_async("/claim_gdollr", claim_gdollr)
-        .post_async("/place_hon_bet", place_hon_bet)
+        .post_async("/place_hot_or_bet_bet", place_hon_bet)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
         .get_async("/game_count/:user_canister", |_req, ctx| {
             user_game_count(ctx)
