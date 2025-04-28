@@ -5,7 +5,9 @@ use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
 use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
-use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
+use yral_canisters_client::individual_user_template::{
+    BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
+};
 
 use crate::{
     admin_cans::AdminCans,
@@ -33,6 +35,12 @@ pub(crate) trait UserStateBackendImpl {
     ) -> Result<()>;
 
     async fn redeem_gdollr(&self, user_canister: Principal, amount: Nat) -> Result<()>;
+
+    async fn bet_on_hot_or_not_post(
+        &self,
+        user_canister: Principal,
+        args: PlaceBetArg,
+    ) -> Result<std::result::Result<BettingStatus, BetOnCurrentlyViewingPostError>>;
 
     async fn game_count(&self, user_canister: Principal) -> Result<u64>;
 

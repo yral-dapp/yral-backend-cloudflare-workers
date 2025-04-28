@@ -40,15 +40,16 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "wasm-bindgen",
 ] }
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = ["backend", "sns-ledger"] }
+# yral-canisters-common = { path = "../../../yral-common/canisters-common", features = ["local", "js"] }
 # pump-n-dump-common = { path = "../../../yral-common/pump-n-dump-common", package = "yral-pump-n-dump-common" }
-yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", features = [
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
     "backend",
     "sns-ledger",
 ] }
-pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", rev = "78c1ec2888c0705dfc875b47c2f31206eb954fec", package = "yral-pump-n-dump-common" }
-# yral-metrics = { path = "../../../yral-common/metrics", package = "yral-metrics", default-features = false, features = [
-#     "js",
-# ] }
-yral-metrics = { git = "https://github.com/yral-dapp/yral-common", rev = "6fc3fcf8e6feb8b611d561024c9f9170c39ab35c", default-features = false, features = [
+yral-canisters-common = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
+    "js",
+] }
+pump-n-dump-common = { git = "https://github.com/yral-dapp/yral-common", branch = "master", package = "yral-pump-n-dump-common" }
+yral-metrics = { git = "https://github.com/yral-dapp/yral-common", branch = "master", default-features = false, features = [
     "js",
 ] }
