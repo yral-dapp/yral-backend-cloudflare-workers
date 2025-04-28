@@ -5315,6 +5315,7 @@ dependencies = [
  "ic-agent 0.38.2",
  "k256",
  "prost",
+ "reqwest",
  "serde",
  "serde_bytes",
  "serde_json",

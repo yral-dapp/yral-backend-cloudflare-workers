@@ -1,27 +1,30 @@
+use crate::wasm_bindgen::JsValue;
 use axum::body::Body;
-use axum::response::IntoResponse;
-use ic_agent::identity::DelegatedIdentity;
-use server_impl::upload_video_to_canister::upload_video_to_canister;
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::result::Result;
-use std::{error::Error, sync::Arc};
-use tower_http::cors::CorsLayer;
-use utils::individual_user_canister::PostDetailsFromFrontend;
-use utils::types::{
-    DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
-};
-
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::{
     debug_handler,
     routing::{get, post},
     Json, Router,
 };
+use ic_agent::identity::DelegatedIdentity;
+use reqwest;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use server_impl::upload_video_to_canister::upload_video_to_canister;
+use std::collections::HashMap;
+use std::fmt::{format, Display};
+use std::result::Result;
+use std::{error::Error, sync::Arc};
+use tower_http::cors::CorsLayer;
 use tower_service::Service;
 use utils::cloudflare_stream::{self, CloudflareStream};
 use utils::events::{EventService, Warehouse};
+use utils::individual_user_canister::PostDetailsFromFrontend;
+use utils::notification::{send_notification, NotificationType};
+use utils::types::{
+    DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
+};
 use worker::Result as WorkerResult;
 use worker::*;
 
@@ -168,7 +171,14 @@ async fn queue(
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
     for message in message_batch.messages()? {
-        process_message(message, &cloudflare_stream_client, &events_rest_service).await;
+        process_message(
+            message,
+            &cloudflare_stream_client,
+            &events_rest_service,
+            env.secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
+                .to_string(),
+        )
+        .await;
     }
 
     Ok(())
@@ -198,10 +208,13 @@ fn is_video_ready(video_details: &Video) -> Result<(bool, String), Box<dyn Error
     }
 }
 
+const METADATA_SERVER_URL: &str = "https://metadata.yral.xyz";
+
 pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
+    notif_api_key: String,
 ) {
     let video_uid = message.body();
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
@@ -233,8 +246,30 @@ pub async fn process_message(
                     video_uid,
                     e.to_string()
                 );
+                send_notification(
+                    NotificationType::VideoUploadError(format!(
+                        "Error uploading video {} to canister {}",
+                        video_uid,
+                        e.to_string()
+                    )),
+                    video_details.creator,
+                    video_uid,
+                    notif_api_key,
+                )
+                .await;
+
                 message.retry()
             } else {
+                send_notification(
+                    NotificationType::VideoUploadSuccess(format!(
+                        "Video {} uploaded successfully to canister",
+                        video_uid
+                    )),
+                    video_details.creator,
+                    video_uid,
+                    notif_api_key,
+                )
+                .await;
                 message.ack();
             }
         }
@@ -244,10 +279,34 @@ pub async fn process_message(
                 video_uid,
                 err
             );
+
+            send_notification(
+                NotificationType::VideoProcessingError(format!(
+                    "Error processing video {} on cloudflare. Error {}",
+                    video_uid, err
+                )),
+                video_details.creator,
+                video_uid,
+                notif_api_key,
+            )
+            .await;
+
             message.ack();
         }
         Err(e) => {
             console_error!("Error extracting video status. Error {}", e.to_string());
+
+            send_notification(
+                NotificationType::VideoStatusExtractionError(format!(
+                    "Error extracting video status. Error {}",
+                    e.to_string()
+                )),
+                video_details.creator,
+                video_uid,
+                notif_api_key,
+            )
+            .await;
+
             message.retry();
         }
     };
