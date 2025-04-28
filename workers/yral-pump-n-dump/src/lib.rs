@@ -38,7 +38,7 @@ fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
 }
 
 // TODO write an abstraction around verification
-fn verify_hon_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)> {
+fn verify_hot_or_not_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)> {
     let msg = verifiable_hon_bet_message(req.args);
 
     let verify_res = req.signature.clone().verify_identity(req.sender, msg);
@@ -51,7 +51,7 @@ fn verify_hon_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)>
 
 async fn place_hot_or_not_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let req: VerifiableHonBetReq = serde_json::from_str(&req.text().await?)?;
-    if let Err((msg, status)) = verify_hon_bet_req(&req) {
+    if let Err((msg, status)) = verify_hot_or_not_bet_req(&req) {
         return Response::error(msg, status);
     }
     let backend = WsBackend::new(&ctx.env)?;
