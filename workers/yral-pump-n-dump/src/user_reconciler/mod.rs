@@ -8,7 +8,11 @@ use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, Uncommitt
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
 use worker::*;
-use yral_canisters_client::individual_user_template::{BalanceInfo, PumpNDumpStateDiff};
+use yral_canisters_client::individual_user_template::{
+    BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
+    SystemTime,
+};
+use yral_canisters_common::utils::vote::HonBetArg;
 use yral_metrics::metrics::cents_withdrawal::CentsWithdrawal;
 
 use crate::{
@@ -37,6 +41,12 @@ pub struct DecrementReq {
 pub struct ClaimGdollrReq {
     pub user_canister: Principal,
     pub amount: Nat,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HotOrNotBetRequest {
+    pub user_canister: Principal,
+    pub args: HonBetArg,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -79,9 +89,127 @@ pub struct UserEphemeralState {
     metrics: CfMetricTx,
 }
 
+/// An intermediary struct that exists simply to allow serializing `SystemTime`
+#[derive(Serialize, Debug, Clone)]
+pub struct IntermediarySystemTime {
+    pub nanos_since_epoch: u32,
+    pub secs_since_epoch: u64,
+}
+
+impl From<SystemTime> for IntermediarySystemTime {
+    fn from(
+        SystemTime {
+            nanos_since_epoch,
+            secs_since_epoch,
+        }: SystemTime,
+    ) -> Self {
+        Self {
+            nanos_since_epoch,
+            secs_since_epoch,
+        }
+    }
+}
+
+/// An intermediary struct that exists simply to allow serializing `BettingStatus`
+#[derive(Serialize, Clone, Debug)]
+enum IntermediaryBettingStatus {
+    BettingOpen {
+        number_of_participants: u8,
+        ongoing_room: u64,
+        ongoing_slot: u8,
+        has_this_user_participated_in_this_post: Option<bool>,
+        started_at: IntermediarySystemTime,
+    },
+    BettingClosed,
+}
+
+impl From<BettingStatus> for IntermediaryBettingStatus {
+    fn from(value: BettingStatus) -> Self {
+        match value {
+            BettingStatus::BettingOpen {
+                number_of_participants,
+                ongoing_room,
+                ongoing_slot,
+                has_this_user_participated_in_this_post,
+                started_at,
+            } => Self::BettingOpen {
+                number_of_participants,
+                ongoing_room,
+                ongoing_slot,
+                has_this_user_participated_in_this_post,
+                started_at: started_at.into(),
+            },
+            BettingStatus::BettingClosed => Self::BettingClosed,
+        }
+    }
+}
+
 impl UserEphemeralState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
+    }
+
+    /// wraps canister call to get clean worker::Response
+    async fn send_bet_to_canister(
+        &self,
+        user_canister: Principal,
+        args: PlaceBetArg,
+    ) -> Result<Response> {
+        let result = self
+            .backend
+            .bet_on_hot_or_not_post(user_canister, args)
+            .await?;
+
+        match result {
+            Ok(betting_status) => {
+                Response::from_json(&IntermediaryBettingStatus::from(betting_status))
+            }
+            Err(err) => Response::error(format!("{err:?}"), 400),
+        }
+    }
+
+    async fn place_hon_bet(
+        &mut self,
+        HotOrNotBetRequest {
+            user_canister,
+            args,
+        }: HotOrNotBetRequest,
+    ) -> Result<Response> {
+        let bet_amount_bigint: BigInt = BigInt::from(args.bet_amount) * 100; // cents in e6s * 100 = cents in e8s
+        let bet_amount_nat = Nat::from(args.bet_amount) * 100usize; // cents in e6s * 100 = cents in e8s
+        let effective_balance = self.effective_balance(user_canister).await? * 100usize; // dolrs in e8s * 100 = cents in e8s
+        let onchain_balance = self.backend.game_balance(user_canister).await?.balance * 100usize; // dolrs in e8s = cents in e8s
+
+        if bet_amount_nat > effective_balance {
+            return Response::error(
+                format!("{:?}", BetOnCurrentlyViewingPostError::InsufficientBalance),
+                400,
+            );
+        }
+
+        if onchain_balance < bet_amount_nat {
+            // edge case, https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820474571
+            self.settle_balance(user_canister).await?;
+
+            return self.send_bet_to_canister(user_canister, args.into()).await;
+        }
+
+        // fast case, avoids settling balance
+        // https://github.com/dolr-ai/yral-backend-cloudflare-workers/issues/24#issuecomment-2820265311
+        let mut storage = self.storage();
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta -= bet_amount_bigint.clone())
+            .await?;
+
+        let res = self.send_bet_to_canister(user_canister, args.into()).await;
+
+        // failure on this call will cause a double negation because of the last two steps
+        // however, that seems unlikely
+        self.off_chain_balance_delta
+            .update(&mut storage, |delta| *delta += bet_amount_bigint)
+            .await?;
+
+        res
     }
 
     async fn set_user_canister(&mut self, user_canister: Principal) -> Result<()> {
@@ -575,6 +703,14 @@ impl DurableObject for UserEphemeralState {
 
                 this.claim_gdollr_v2(claim_req.user_canister, claim_req.amount)
                     .await
+            })
+            .post_async("/place_hot_or_not_bet", |mut req, ctx| async move {
+                let this = ctx.data;
+                let bet_req: HotOrNotBetRequest = req.json().await?;
+
+                this.set_user_canister(bet_req.user_canister).await?;
+
+                this.place_hon_bet(bet_req).await
             })
             .get_async("/game_count/:user_canister", |_req, ctx| async move {
                 let user_canister_raw = ctx.param("user_canister").unwrap();

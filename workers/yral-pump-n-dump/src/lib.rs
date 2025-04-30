@@ -15,9 +15,10 @@ use pump_n_dump_common::{
 };
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
-use user_reconciler::ClaimGdollrReq;
+use user_reconciler::{ClaimGdollrReq, HotOrNotBetRequest};
 use utils::{game_state_stub, parse_principal, user_state_stub, RequestInitBuilder};
 use worker::*;
+use yral_canisters_common::utils::vote::{verifiable_hon_bet_message, VerifiableHonBetReq};
 use yral_identity::Signature;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -52,6 +53,47 @@ fn verify_jwt_from_header(req: &Request) -> StdResult<(), (String, u16)> {
 
     let jwt = &jwt[7..];
     jwt::verify_jwt(jwt).map_err(|_| ("invalid JWT".to_string(), 401))
+}
+
+// TODO write an abstraction around verification
+fn verify_hot_or_not_bet_req(req: &VerifiableHonBetReq) -> StdResult<(), (String, u16)> {
+    let msg = verifiable_hon_bet_message(req.args);
+
+    let verify_res = req.signature.clone().verify_identity(req.sender, msg);
+    if verify_res.is_err() {
+        return Err(("invalid signature".into(), 401));
+    }
+
+    Ok(())
+}
+
+async fn place_hot_or_not_bet(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let req: VerifiableHonBetReq = serde_json::from_str(&req.text().await?)?;
+    if let Err((msg, status)) = verify_hot_or_not_bet_req(&req) {
+        return Response::error(msg, status);
+    }
+    let backend = WsBackend::new(&ctx.env)?;
+
+    let Some(user_canister) = backend.user_principal_to_user_canister(req.sender).await? else {
+        return Response::error("user not found", 404);
+    };
+
+    let user_state = user_state_stub(&ctx, user_canister)?;
+
+    let body = HotOrNotBetRequest {
+        user_canister,
+        args: req.args,
+    };
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/place_hot_or_not_bet",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&body)?
+            .build(),
+    )?;
+
+    user_state.fetch_with_request(req).await
 }
 
 async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -292,6 +334,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let res = router
         .post_async("/claim_gdollr", claim_gdollr)
         .post_async("/claim_gdolr_v2", claim_gdolr_v2)
+        .post_async("/place_hot_or_not_bet", place_hot_or_not_bet)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
         .get_async("/balance_v2/:user_canister", |_req, ctx| {
             user_balance_v2(ctx)
