@@ -19,7 +19,7 @@ use tower_service::Service;
 use utils::cloudflare_stream::CloudflareStream;
 use utils::events::{EventService, Warehouse};
 use utils::individual_user_canister::PostDetailsFromFrontend;
-use utils::notification::{send_notification, NotificationType};
+use utils::notification::{NotificationClient, NotificationType};
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
@@ -169,13 +169,17 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
+    let notif_client = NotificationClient::new(
+        env.secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
+            .to_string(),
+    );
+
     for message in message_batch.messages()? {
         process_message(
             message,
             &cloudflare_stream_client,
             &events_rest_service,
-            env.secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
-                .to_string(),
+            &notif_client,
         )
         .await;
     }
@@ -211,7 +215,7 @@ pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
-    notif_api_key: String,
+    notif_client: &NotificationClient,
 ) {
     let video_uid = message.body();
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
@@ -255,30 +259,30 @@ pub async fn process_message(
                     video_uid,
                     e.to_string()
                 );
-                send_notification(
-                    NotificationType::VideoUploadError(format!(
-                        "Error uploading video {} to canister {}",
+                notif_client
+                    .send_notification(
+                        NotificationType::VideoUploadError(format!(
+                            "Error uploading video {} to canister {}",
+                            video_uid,
+                            e.to_string()
+                        )),
+                        ic_agent.get_principal().ok(),
                         video_uid,
-                        e.to_string()
-                    )),
-                    ic_agent.get_principal().ok(),
-                    video_uid,
-                    notif_api_key,
-                )
-                .await;
+                    )
+                    .await;
 
                 message.retry()
             } else {
-                send_notification(
-                    NotificationType::VideoUploadSuccess(format!(
-                        "Video {} uploaded successfully to canister",
-                        video_uid
-                    )),
-                    ic_agent.get_principal().ok(),
-                    video_uid,
-                    notif_api_key,
-                )
-                .await;
+                notif_client
+                    .send_notification(
+                        NotificationType::VideoUploadSuccess(format!(
+                            "Video {} uploaded successfully to canister",
+                            video_uid
+                        )),
+                        ic_agent.get_principal().ok(),
+                        video_uid,
+                    )
+                    .await;
                 message.ack();
             }
         }
@@ -289,32 +293,32 @@ pub async fn process_message(
                 err
             );
 
-            send_notification(
-                NotificationType::VideoProcessingError(format!(
-                    "Error processing video {} on cloudflare. Error {}",
-                    video_uid, err
-                )),
-                ic_agent.get_principal().ok(),
-                video_uid,
-                notif_api_key,
-            )
-            .await;
+            notif_client
+                .send_notification(
+                    NotificationType::VideoProcessingError(format!(
+                        "Error processing video {} on cloudflare. Error {}",
+                        video_uid, err
+                    )),
+                    ic_agent.get_principal().ok(),
+                    video_uid,
+                )
+                .await;
 
             message.ack();
         }
         Err(e) => {
             console_error!("Error extracting video status. Error {}", e.to_string());
 
-            send_notification(
-                NotificationType::VideoStatusExtractionError(format!(
-                    "Error extracting video status. Error {}",
-                    e.to_string()
-                )),
-                ic_agent.get_principal().ok(),
-                video_uid,
-                notif_api_key,
-            )
-            .await;
+            notif_client
+                .send_notification(
+                    NotificationType::VideoStatusExtractionError(format!(
+                        "Error extracting video status. Error {}",
+                        e.to_string()
+                    )),
+                    ic_agent.get_principal().ok(),
+                    video_uid,
+                )
+                .await;
 
             message.retry();
         }
