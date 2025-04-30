@@ -253,37 +253,37 @@ pub async fn process_message(
             )
             .await;
 
-            if let Err(e) = result {
-                console_error!(
-                    "Error uploading video {} to canister {}",
-                    video_uid,
-                    e.to_string()
-                );
-                notif_client
-                    .send_notification(
-                        NotificationType::VideoUploadError(format!(
-                            "Error uploading video {} to canister {}",
-                            video_uid,
-                            e.to_string()
-                        )),
-                        ic_agent.get_principal().ok(),
+            match result {
+                Ok(post_id) => {
+                    notif_client
+                        .send_notification(
+                            NotificationType::VideoUploadSuccess(format!(
+                                "Video {} uploaded successfully to canister",
+                                post_id
+                            )),
+                            ic_agent.get_principal().ok(),
+                        )
+                        .await;
+                    message.ack();
+                }
+                Err(e) => {
+                    console_error!(
+                        "Error uploading video {} to canister {}",
                         video_uid,
-                    )
-                    .await;
+                        e.to_string()
+                    );
+                    notif_client
+                        .send_notification(
+                            NotificationType::VideoUploadError(format!(
+                                "Error uploading video to canister {}",
+                                e.to_string()
+                            )),
+                            ic_agent.get_principal().ok(),
+                        )
+                        .await;
 
-                message.retry()
-            } else {
-                notif_client
-                    .send_notification(
-                        NotificationType::VideoUploadSuccess(format!(
-                            "Video {} uploaded successfully to canister",
-                            video_uid
-                        )),
-                        ic_agent.get_principal().ok(),
-                        video_uid,
-                    )
-                    .await;
-                message.ack();
+                    message.retry()
+                }
             }
         }
         Ok((false, err)) => {
@@ -296,11 +296,10 @@ pub async fn process_message(
             notif_client
                 .send_notification(
                     NotificationType::VideoProcessingError(format!(
-                        "Error processing video {} on cloudflare. Error {}",
-                        video_uid, err
+                        "Error processing video on cloudflare. Error {}",
+                        err
                     )),
                     ic_agent.get_principal().ok(),
-                    video_uid,
                 )
                 .await;
 
@@ -316,7 +315,6 @@ pub async fn process_message(
                         e.to_string()
                     )),
                     ic_agent.get_principal().ok(),
-                    video_uid,
                 )
                 .await;
 
@@ -331,7 +329,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
     meta: &HashMap<String, String>,
     events: &EventService,
     agent: &Agent,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<u64, Box<dyn Error>> {
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;

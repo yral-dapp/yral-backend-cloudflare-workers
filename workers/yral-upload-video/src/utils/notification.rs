@@ -12,12 +12,8 @@ impl NotificationClient {
     pub fn new(api_key: String) -> Self {
         Self { api_key }
     }
-    pub async fn send_notification(
-        &self,
-        data: NotificationType,
-        creator: Option<Principal>,
-        video_uid: &str,
-    ) {
+
+    pub async fn send_notification(&self, data: NotificationType, creator: Option<Principal>) {
         if let Some(creator_principal) = creator {
             let client = reqwest::Client::new();
             let url = format!(
@@ -36,34 +32,18 @@ impl NotificationClient {
             match res {
                 Ok(response) => {
                     if response.status().is_success() {
-                        console_log!(
-                            "Successfully sent error notification for video {}",
-                            video_uid
-                        );
                     } else {
-                        console_error!(
-                            "Failed to send error notification for video {}: Status: {}",
-                            video_uid,
-                            response.status()
-                        );
                         if let Ok(body) = response.text().await {
                             console_error!("Response body: {}", body);
                         }
                     }
                 }
                 Err(req_err) => {
-                    console_error!(
-                        "Error sending notification request for video {}: {}",
-                        video_uid,
-                        req_err
-                    );
+                    console_error!("Error sending notification request for video: {}", req_err);
                 }
             }
         } else {
-            console_error!(
-                "Creator principal not found for video {}, cannot send notification.",
-                video_uid
-            );
+            console_error!("Creator principal not found for video, cannot send notification.");
         }
     }
 }

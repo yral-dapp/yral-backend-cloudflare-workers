@@ -19,7 +19,7 @@ pub async fn upload_video_to_canister(
     video_uid: String,
     ic_agent: &Agent,
     post_details: PostDetailsFromFrontend,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<u64, Box<dyn Error>> {
     let yral_metadata_client = yral_metadata_client::MetadataClient::default();
 
     console_log!("user principal id {}", ic_agent.get_principal()?);
@@ -64,7 +64,7 @@ pub async fn upload_video_to_canister(
                     )
                 });
 
-            Ok(())
+            Ok(post_id)
         }
         Err(e) => {
             console_error!(
