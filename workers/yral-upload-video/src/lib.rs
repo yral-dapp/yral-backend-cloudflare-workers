@@ -257,10 +257,7 @@ pub async fn process_message(
                 Ok(post_id) => {
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadSuccess(format!(
-                                "Video {} uploaded successfully to canister",
-                                post_id
-                            )),
+                            NotificationType::VideoUploadSuccess(post_id),
                             ic_agent.get_principal().ok(),
                         )
                         .await;
@@ -274,10 +271,7 @@ pub async fn process_message(
                     );
                     notif_client
                         .send_notification(
-                            NotificationType::VideoUploadError(format!(
-                                "Error uploading video to canister {}",
-                                e.to_string()
-                            )),
+                            NotificationType::VideoUploadError,
                             ic_agent.get_principal().ok(),
                         )
                         .await;
@@ -295,10 +289,7 @@ pub async fn process_message(
 
             notif_client
                 .send_notification(
-                    NotificationType::VideoProcessingError(format!(
-                        "Error processing video on cloudflare. Error {}",
-                        err
-                    )),
+                    NotificationType::VideoUploadError,
                     ic_agent.get_principal().ok(),
                 )
                 .await;
@@ -310,10 +301,7 @@ pub async fn process_message(
 
             notif_client
                 .send_notification(
-                    NotificationType::VideoStatusExtractionError(format!(
-                        "Error extracting video status. Error {}",
-                        e.to_string()
-                    )),
+                    NotificationType::VideoUploadError,
                     ic_agent.get_principal().ok(),
                 )
                 .await;

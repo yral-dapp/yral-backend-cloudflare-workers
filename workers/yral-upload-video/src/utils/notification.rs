@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use candid::Principal;
 use serde::{Deserialize, Serialize};
 use worker::console_error;
@@ -53,8 +55,19 @@ impl NotificationClient {
 
 #[derive(Serialize, Deserialize)]
 pub enum NotificationType {
-    VideoUploadSuccess(String),
-    VideoUploadError(String),
-    VideoProcessingError(String),
-    VideoStatusExtractionError(String),
+    VideoUploadSuccess(PostId),
+    VideoUploadError,
+}
+
+type PostId = u64;
+
+impl Display for NotificationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NotificationType::VideoUploadSuccess(post_id) => {
+                write!(f, "Video uploaded successfully to canister {}", post_id)
+            }
+            NotificationType::VideoUploadError => write!(f, "Error uploading video"),
+        }
+    }
 }
