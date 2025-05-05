@@ -3,12 +3,10 @@ mod hon_game;
 mod hon_sentiment_oracle;
 
 use candid::Principal;
-use hon_game::{GameInfoReq, PaginatedGamesReq, VoteRequest};
-use serde::{Deserialize, Serialize};
+use hon_worker_common::{hon_game_vote_msg, GameInfoReq, HoNGameVoteReq, PaginatedGamesReq};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::{parse_principal, RequestInitBuilder};
-use yral_identity::Signature;
 
 fn cors_policy() -> Cors {
     Cors::new()
@@ -16,19 +14,6 @@ fn cors_policy() -> Cors {
         .with_methods([Method::Head, Method::Get, Method::Post, Method::Options])
         .with_allowed_headers(vec!["*"])
         .with_max_age(86400)
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct HoNGameVoteReq {
-    pub request: VoteRequest,
-    pub signature: Signature,
-}
-
-fn hon_game_vote_msg(request: VoteRequest) -> yral_identity::msg_builder::Message {
-    yral_identity::msg_builder::Message::default()
-        .method_name("hon_worker_game_vote".into())
-        .args((request,))
-        .expect("Vote request should serialize")
 }
 
 fn verify_hon_game_req(sender: Principal, req: &HoNGameVoteReq) -> StdResult<(), (u16, String)> {

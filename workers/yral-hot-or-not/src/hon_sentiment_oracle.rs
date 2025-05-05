@@ -1,13 +1,7 @@
-use candid::{CandidType, Principal};
+use candid::Principal;
 use enum_dispatch::enum_dispatch;
-use serde::{Deserialize, Serialize};
+use hon_worker_common::HotOrNot;
 use worker::{Date, Result};
-
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Debug, CandidType)]
-pub enum HotOrNot {
-    Hot,
-    Not,
-}
 
 #[enum_dispatch]
 pub(crate) trait HoNSentimentOracleImpl {

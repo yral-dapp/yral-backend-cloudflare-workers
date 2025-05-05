@@ -26,3 +26,4 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "ic-git",
     "wasm-bindgen",
 ] }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "rupansh/hon-game" }

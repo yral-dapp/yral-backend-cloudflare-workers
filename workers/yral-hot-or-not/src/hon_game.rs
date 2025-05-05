@@ -1,69 +1,19 @@
 use std::collections::HashMap;
 
-use candid::{CandidType, Principal};
+use candid::Principal;
+use hon_worker_common::{
+    GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
+    VoteRequest, VoteRes,
+};
 use num_bigint::BigUint;
-use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::storage::{SafeStorage, StorageCell};
 
 use crate::{
     consts::DEFAULT_ONBOARDING_REWARD_SATS,
-    hon_sentiment_oracle::{HoNSentimentOracle, HoNSentimentOracleImpl, HotOrNot},
+    hon_sentiment_oracle::{HoNSentimentOracle, HoNSentimentOracleImpl},
 };
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum GameResult {
-    Win { win_amt: BigUint },
-    Loss { lose_amt: BigUint },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum GameInfo {
-    CreatorReward(BigUint),
-    Vote {
-        vote_amount: BigUint,
-        game_result: GameResult,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct VoteRes {
-    pub game_result: GameResult,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, CandidType)]
-pub struct VoteRequest {
-    pub post_canister: Principal,
-    pub post_id: u64,
-    pub vote_amount: u128,
-    pub direction: HotOrNot,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct GameRes {
-    pub post_canister: Principal,
-    pub post_id: u64,
-    pub game_info: GameInfo,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PaginatedGamesReq {
-    pub page_size: usize,
-    pub cursor: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PaginatedGamesRes {
-    pub games: Vec<GameRes>,
-    pub next: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
-pub struct GameInfoReq {
-    pub post_canister: Principal,
-    pub post_id: u64,
-}
 
 #[durable_object]
 pub struct UserHonGameState {
