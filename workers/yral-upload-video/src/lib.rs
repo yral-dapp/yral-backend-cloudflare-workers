@@ -1,27 +1,29 @@
 use axum::body::Body;
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::{
+    debug_handler,
+    routing::{get, post},
+    Json, Router,
+};
 use ic_agent::identity::DelegatedIdentity;
+use ic_agent::Agent;
+use serde::{Deserialize, Serialize};
 use server_impl::upload_video_to_canister::upload_video_to_canister;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::result::Result;
 use std::{error::Error, sync::Arc};
 use tower_http::cors::CorsLayer;
+use tower_service::Service;
+use utils::cloudflare_stream::CloudflareStream;
+use utils::events::{EventService, Warehouse};
 use utils::individual_user_canister::PostDetailsFromFrontend;
+use utils::notification::{NotificationClient, NotificationType};
 use utils::types::{
     DelegatedIdentityWire, DirectUploadResult, Video, DELEGATED_IDENTITY_KEY, POST_DETAILS_KEY,
 };
-
-use axum::http::StatusCode;
-use axum::{
-    debug_handler,
-    routing::{get, post},
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
-use tower_service::Service;
-use utils::cloudflare_stream::{self, CloudflareStream};
-use utils::events::{EventService, Warehouse};
+use utils::user_ic_agent::create_ic_agent_from_meta;
 use worker::Result as WorkerResult;
 use worker::*;
 
@@ -167,8 +169,19 @@ async fn queue(
     let events_rest_service =
         EventService::with_auth_token(env.secret("OFF_CHAIN_GRPC_AUTH_TOKEN")?.to_string());
 
+    let notif_client = NotificationClient::new(
+        env.secret("YRAL_METADATA_USER_NOTIFICATION_API_KEY")?
+            .to_string(),
+    );
+
     for message in message_batch.messages()? {
-        process_message(message, &cloudflare_stream_client, &events_rest_service).await;
+        process_message(
+            message,
+            &cloudflare_stream_client,
+            &events_rest_service,
+            &notif_client,
+        )
+        .await;
     }
 
     Ok(())
@@ -202,6 +215,7 @@ pub async fn process_message(
     message: Message<String>,
     cloudflare_stream_client: &CloudflareStream,
     events_rest_service: &EventService,
+    notif_client: &NotificationClient,
 ) {
     let video_uid = message.body();
     let video_details_result = cloudflare_stream_client.get_video_details(video_uid).await;
@@ -216,26 +230,54 @@ pub async fn process_message(
 
     let is_video_ready = is_video_ready(&video_details);
 
+    let Ok(meta) = video_details.meta.as_ref().ok_or("meta not found") else {
+        console_error!("meta not found");
+        message.retry();
+        return;
+    };
+
+    let Ok(ic_agent) = create_ic_agent_from_meta(meta) else {
+        console_error!("error creating ic agent");
+        message.retry();
+        return;
+    };
+
     match is_video_ready {
         Ok((true, _)) => {
-            let meta = video_details.meta.as_ref();
             let result = extract_fields_from_video_meta_and_upload_video(
                 &cloudflare_stream_client,
                 video_uid.to_string(),
                 meta,
                 events_rest_service,
+                &ic_agent,
             )
             .await;
 
-            if let Err(e) = result {
-                console_error!(
-                    "Error uploading video {} to canister {}",
-                    video_uid,
-                    e.to_string()
-                );
-                message.retry()
-            } else {
-                message.ack();
+            match result {
+                Ok(post_id) => {
+                    notif_client
+                        .send_notification(
+                            NotificationType::VideoUploadSuccess(post_id),
+                            ic_agent.get_principal().ok(),
+                        )
+                        .await;
+                    message.ack();
+                }
+                Err(e) => {
+                    console_error!(
+                        "Error uploading video {} to canister {}",
+                        video_uid,
+                        e.to_string()
+                    );
+                    notif_client
+                        .send_notification(
+                            NotificationType::VideoUploadError,
+                            ic_agent.get_principal().ok(),
+                        )
+                        .await;
+
+                    message.retry()
+                }
             }
         }
         Ok((false, err)) => {
@@ -244,10 +286,26 @@ pub async fn process_message(
                 video_uid,
                 err
             );
+
+            notif_client
+                .send_notification(
+                    NotificationType::VideoUploadError,
+                    ic_agent.get_principal().ok(),
+                )
+                .await;
+
             message.ack();
         }
         Err(e) => {
             console_error!("Error extracting video status. Error {}", e.to_string());
+
+            notif_client
+                .send_notification(
+                    NotificationType::VideoUploadError,
+                    ic_agent.get_principal().ok(),
+                )
+                .await;
+
             message.retry();
         }
     };
@@ -256,17 +314,10 @@ pub async fn process_message(
 pub async fn extract_fields_from_video_meta_and_upload_video(
     cloudflare_stream: &CloudflareStream,
     video_uid: String,
-    meta: Option<&HashMap<String, String>>,
+    meta: &HashMap<String, String>,
     events: &EventService,
-) -> Result<(), Box<dyn Error>> {
-    let meta = meta.ok_or("meta not found")?;
-    let delegated_identity_string = meta
-        .get(DELEGATED_IDENTITY_KEY)
-        .ok_or("delegated identity not found")?;
-
-    let delegated_identity_wire: DelegatedIdentityWire =
-        serde_json::from_str(delegated_identity_string)?;
-
+    agent: &Agent,
+) -> Result<u64, Box<dyn Error>> {
     let post_details_from_frontend_string = meta
         .get(POST_DETAILS_KEY)
         .ok_or("post details not found in meta")?;
@@ -278,7 +329,7 @@ pub async fn extract_fields_from_video_meta_and_upload_video(
         cloudflare_stream,
         events,
         video_uid,
-        delegated_identity_wire,
+        agent,
         post_details_from_frontend,
     )
     .await
