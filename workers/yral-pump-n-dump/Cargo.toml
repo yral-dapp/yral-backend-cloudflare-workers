@@ -20,15 +20,15 @@ futures.workspace = true
 serde-wasm-bindgen.workspace = true
 serde_json.workspace = true
 wasm-bindgen-futures.workspace = true
-rmp-serde.workspace = true
-serde_bytes.workspace = true
+worker-utils.workspace = true
+num-bigint.workspace = true
+candid.workspace = true
+enum_dispatch.workspace = true
 
 # crate specific stuff
-enum_dispatch = "0.3.13"
 ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
 getrandom = { version = "0.2.15", features = ["js"] }
-candid = "0.10.11"
-num-bigint = "0.4.6"
+
 uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
 k256 = "0.13.4"
 ciborium = "0.2.2"

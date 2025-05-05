@@ -13,9 +13,10 @@ use pump_n_dump_common::{
     ws::identify_message,
 };
 use serde::{Deserialize, Serialize};
+use worker_utils::{parse_principal, RequestInitBuilder};
 use std::result::Result as StdResult;
 use user_reconciler::{ClaimGdollrReq, HotOrNotBetRequest};
-use utils::{game_state_stub, parse_principal, user_state_stub, RequestInitBuilder};
+use utils::{game_state_stub, user_state_stub};
 use worker::*;
 use yral_canisters_common::utils::vote::{verifiable_hon_bet_message, VerifiableHonBetReq};
 use yral_identity::Signature;

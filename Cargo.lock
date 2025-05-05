@@ -5458,6 +5458,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "yral-hot-or-not"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "console_error_panic_hook",
+ "enum_dispatch",
+ "num-bigint",
+ "serde",
+ "wasm-bindgen-futures",
+ "worker",
+ "worker-macros",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+ "yral-worker-utils",
+]
+
+[[package]]
 name = "yral-identity"
 version = "0.1.0"
 source = "git+https://github.com/go-bazzinga/yral-identity.git?rev=156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701#156bc0e7a4bc3d9a3b4faab4b9b3048e88a0c701"
@@ -5582,10 +5598,8 @@ dependencies = [
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
- "rmp-serde",
  "serde",
  "serde-wasm-bindgen 0.6.5",
- "serde_bytes",
  "serde_json",
  "uuid",
  "wasm-bindgen-futures",
@@ -5597,6 +5611,7 @@ dependencies = [
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748)",
  "yral-metrics",
  "yral-pump-n-dump-common",
+ "yral-worker-utils",
 ]
 
 [[package]]
@@ -5647,6 +5662,19 @@ dependencies = [
  "worker",
  "worker-macros",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295)",
+]
+
+[[package]]
+name = "yral-worker-utils"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "rmp-serde",
+ "serde",
+ "serde-wasm-bindgen 0.6.5",
+ "serde_bytes",
+ "serde_json",
+ "worker",
 ]
 
 [[package]]
