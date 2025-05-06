@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use candid::Principal;
 use hon_worker_common::{
     GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    SatsBalanceInfo, VoteRequest, VoteRes,
+    SatsBalanceInfo, VoteRequest, VoteRes, WorkerError,
 };
 use num_bigint::BigUint;
 use std::result::Result as StdResult;
@@ -13,6 +13,7 @@ use worker_utils::storage::{SafeStorage, StorageCell};
 use crate::{
     consts::DEFAULT_ONBOARDING_REWARD_SATS,
     hon_sentiment_oracle::{HoNSentimentOracle, HoNSentimentOracleImpl},
+    utils::worker_err_to_resp,
 };
 
 #[durable_object]
@@ -108,21 +109,21 @@ impl UserHonGameState {
         post_id: u64,
         vote_amount: u128,
         direction: HotOrNot,
-    ) -> StdResult<VoteRes, (u16, String)> {
+    ) -> StdResult<VoteRes, (u16, WorkerError)> {
         let game_info = self
             .game_info(post_canister, post_id)
             .await
-            .map_err(|_| (500, "failed to get game info: internal".to_string()))?;
+            .map_err(|_| (500, WorkerError::Internal("failed to get game info".into())))?;
         if game_info.is_some() {
-            return Err((400, "invalid post: already voted".to_string()));
+            return Err((400, WorkerError::AlreadyVotedOnPost));
         }
 
         let sentiment = self
             .sentiment_oracle
             .get_post_sentiment(post_canister, post_id)
             .await
-            .map_err(|_| (500, "failed to get sentiment: internal".to_string()))?
-            .ok_or_else(|| (404, "invalid post: not found".to_string()))?;
+            .map_err(|_| (500, WorkerError::Internal("failed to get sentiment".into())))?
+            .ok_or((404, WorkerError::PostNotFound))?;
 
         let mut storage = self.storage();
         let mut result = None::<GameResult>;
@@ -146,10 +147,15 @@ impl UserHonGameState {
                 }
             })
             .await
-            .map_err(|_| (500, "failed to update balance: internal".to_string()))?;
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to update balance".into()),
+                )
+            })?;
 
         let Some(game_result) = result else {
-            return Err((400, "insufficient balance".to_string()));
+            return Err((400, WorkerError::InsufficientFunds));
         };
 
         let game_info = GameInfo::Vote {
@@ -158,12 +164,17 @@ impl UserHonGameState {
         };
         self.games()
             .await
-            .map_err(|_| (500, "failed to get games: internal".to_string()))?
+            .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
             .insert((post_canister, post_id), game_info.clone());
         self.storage()
             .put(&format!("games-{}-{}", post_canister, post_id), &game_info)
             .await
-            .map_err(|_| (500, "failed to store game info: internal".to_string()))?;
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to store game info".into()),
+                )
+            })?;
 
         Ok(VoteRes { game_result })
     }
@@ -210,7 +221,7 @@ impl DurableObject for UserHonGameState {
                     .await
                 {
                     Ok(res) => Response::from_json(&res),
-                    Err((code, msg)) => Response::error(msg, code),
+                    Err((code, msg)) => worker_err_to_resp(code, msg),
                 }
             })
             .get_async("/balance", async |_, ctx| {

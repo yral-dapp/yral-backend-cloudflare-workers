@@ -1,10 +1,14 @@
 mod consts;
 mod hon_game;
 mod hon_sentiment_oracle;
+mod utils;
 
 use candid::Principal;
-use hon_worker_common::{hon_game_vote_msg, GameInfoReq, HoNGameVoteReq, PaginatedGamesReq};
+use hon_worker_common::{
+    hon_game_vote_msg, GameInfoReq, HoNGameVoteReq, PaginatedGamesReq, WorkerError,
+};
 use std::result::Result as StdResult;
+use utils::worker_err_to_resp;
 use worker::*;
 use worker_utils::{parse_principal, RequestInitBuilder};
 
@@ -16,13 +20,16 @@ fn cors_policy() -> Cors {
         .with_max_age(86400)
 }
 
-fn verify_hon_game_req(sender: Principal, req: &HoNGameVoteReq) -> StdResult<(), (u16, String)> {
+fn verify_hon_game_req(
+    sender: Principal,
+    req: &HoNGameVoteReq,
+) -> StdResult<(), (u16, WorkerError)> {
     let msg = hon_game_vote_msg(req.request.clone());
 
     req.signature
         .clone()
         .verify_identity(sender, msg)
-        .map_err(|_| (401, "invalid signature".into()))?;
+        .map_err(|_| (401, WorkerError::InvalidSignature))?;
 
     Ok(())
 }
@@ -40,7 +47,7 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
 
     let req = req.json::<HoNGameVoteReq>().await?;
     if let Err((code, err)) = verify_hon_game_req(user_principal, &req) {
-        return Response::error(err, code);
+        return worker_err_to_resp(code, err);
     };
 
     let game_stub = get_hon_game_stub(&ctx, user_principal)?;

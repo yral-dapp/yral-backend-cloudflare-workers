@@ -1443,11 +1443,12 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=rupansh%2Fhon-game#754e46297aa00d73c097f1c4332c298f437cee0f"
+source = "git+https://github.com/dolr-ai/yral-common?branch=rupansh%2Fhon-game#612adf76344d6e0015a9a138d0cd023542497773"
 dependencies = [
  "candid",
  "num-bigint",
  "serde",
+ "thiserror 2.0.12",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
 ]
 
