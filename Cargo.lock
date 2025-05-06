@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=rupansh%2Fhon-game#e6470f2adf7ab70d9a17804a07408fd8a30f9955"
+source = "git+https://github.com/dolr-ai/yral-common?branch=rupansh%2Fhon-game#754e46297aa00d73c097f1c4332c298f437cee0f"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5475,6 +5475,7 @@ dependencies = [
  "candid",
  "console_error_panic_hook",
  "enum_dispatch",
+ "getrandom 0.3.2",
  "hon-worker-common",
  "num-bigint",
  "serde",

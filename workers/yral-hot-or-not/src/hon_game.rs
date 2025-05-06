@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use candid::Principal;
 use hon_worker_common::{
     GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    VoteRequest, VoteRes,
+    SatsBalanceInfo, VoteRequest, VoteRes,
 };
 use num_bigint::BigUint;
 use std::result::Result as StdResult;
@@ -20,6 +20,7 @@ pub struct UserHonGameState {
     state: State,
     env: Env,
     sats_balance: StorageCell<BigUint>,
+    airdrop_amount: StorageCell<BigUint>,
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
     sentiment_oracle: HoNSentimentOracle,
@@ -184,6 +185,9 @@ impl DurableObject for UserHonGameState {
             sats_balance: StorageCell::new("sats_balance", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
+            airdrop_amount: StorageCell::new("airdrop_amount", || {
+                BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
+            }),
             games: None,
             sentiment_oracle,
         }
@@ -213,7 +217,11 @@ impl DurableObject for UserHonGameState {
                 let this = ctx.data;
                 let storage = this.storage();
                 let balance = this.sats_balance.read(&storage).await?.clone();
-                Response::ok(balance.to_string())
+                let airdropped = this.airdrop_amount.read(&storage).await?.clone();
+                Response::from_json(&SatsBalanceInfo {
+                    balance,
+                    airdropped,
+                })
             })
             .get_async("/game_info", async |mut req, ctx| {
                 let req_data: GameInfoReq = req.json().await?;
