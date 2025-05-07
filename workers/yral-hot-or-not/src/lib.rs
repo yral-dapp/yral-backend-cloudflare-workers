@@ -87,7 +87,7 @@ async fn game_info(mut req: Request, ctx: RouteContext<()>) -> Result<Response> 
     let req = Request::new_with_init(
         "http://fake_url.com/game_info",
         RequestInitBuilder::default()
-            .method(Method::Get)
+            .method(Method::Post)
             .json(&req_data)?
             .build(),
     )?;
@@ -107,7 +107,7 @@ async fn paginated_games(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
     let req = Request::new_with_init(
         "http://fake_url.com/games",
         RequestInitBuilder::default()
-            .method(Method::Get)
+            .method(Method::Post)
             .json(&req_data)?
             .build(),
     )?;
@@ -127,8 +127,8 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/balance/:user_principal", |_req, ctx| {
             user_sats_balance(ctx)
         })
-        .get_async("/game_info/:user_principal", game_info)
-        .get_async("/games/:user_principal", |req, ctx| {
+        .post_async("/game_info/:user_principal", game_info)
+        .post_async("/games/:user_principal", |req, ctx| {
             paginated_games(req, ctx)
         })
         .post_async("/vote/:user_principal", |req, ctx| {

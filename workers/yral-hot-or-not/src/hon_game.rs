@@ -234,7 +234,7 @@ impl DurableObject for UserHonGameState {
                     airdropped,
                 })
             })
-            .get_async("/game_info", async |mut req, ctx| {
+            .post_async("/game_info", async |mut req, ctx| {
                 let req_data: GameInfoReq = req.json().await?;
 
                 let this = ctx.data;
@@ -243,7 +243,7 @@ impl DurableObject for UserHonGameState {
                     .await?;
                 Response::from_json(&game_info)
             })
-            .get_async("/games", async |mut req, ctx| {
+            .post_async("/games", async |mut req, ctx| {
                 let req_data: PaginatedGamesReq = req.json().await?;
                 let this = ctx.data;
                 let res = this
