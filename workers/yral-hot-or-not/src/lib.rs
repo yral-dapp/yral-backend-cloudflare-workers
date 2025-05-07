@@ -134,6 +134,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/vote/:user_principal", |req, ctx| {
             place_hot_or_not_vote(req, ctx)
         })
+        .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;
 
