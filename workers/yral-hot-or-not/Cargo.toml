@@ -21,9 +21,6 @@ serde.workspace = true
 wasm-bindgen-futures.workspace = true
 enum_dispatch.workspace = true
 
-# crate specific stuff
-getrandom = { version = "0.3.2", features = ["wasm_js"] }
-
 # yral deps
 yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = [
     "ic-git",

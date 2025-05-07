@@ -5476,7 +5476,6 @@ dependencies = [
  "candid",
  "console_error_panic_hook",
  "enum_dispatch",
- "getrandom 0.3.2",
  "hon-worker-common",
  "num-bigint",
  "serde",
