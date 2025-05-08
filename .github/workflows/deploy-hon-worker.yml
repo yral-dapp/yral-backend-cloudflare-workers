@@ -1,5 +1,8 @@
 name: Deploy Hot Or Not Game Worker
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   push:
