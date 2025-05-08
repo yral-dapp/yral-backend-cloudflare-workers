@@ -48,6 +48,11 @@ impl UserStateBackendImpl for AdminCans {
         user.pd_balance_info().await.map_err(to_worker_error)
     }
 
+    async fn game_balance_v2(&self, user_canister: Principal) -> Result<BalanceInfo> {
+        let user = self.individual_user(user_canister).await;
+        user.cents_token_balance_info().await.map_err(to_worker_error)
+    }
+
     async fn reconcile_user_state(
         &self,
         user_canister: Principal,

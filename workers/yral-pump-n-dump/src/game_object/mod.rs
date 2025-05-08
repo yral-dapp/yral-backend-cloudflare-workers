@@ -18,9 +18,17 @@ use pump_n_dump_common::{
     ws::{GameResult, WsResp},
     GameDirection,
 };
+use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 use worker::*;
 use yral_metrics::metrics::tides_turned::TidesTurned;
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct TotalBetsInfo {
+    pub pumps: u64,
+    pub dumps: u64,
+    pub round: u64,
+}
 
 #[durable_object]
 pub struct GameState {
@@ -346,8 +354,8 @@ impl GameState {
         let metrics_list = bets
             .iter()
             .map(|(winner, bet)| {
-                let bet = bet.clone();
-                let winner = winner.clone();
+                let bet = *bet;
+                let winner = *winner;
 
                 TidesTurned {
                     user_canister: winner,
@@ -600,6 +608,20 @@ impl DurableObject for GameState {
                 let this = ctx.data;
                 let player_cnt = this.state.get_websockets().len();
                 Response::ok(player_cnt.to_string())
+            })
+            .get_async("/total_bets_info", |_req, ctx| async move {
+                let this = ctx.data;
+                let pumps = this.cumulative_pumps().await?;
+                let dumps = this.cumulative_dumps().await?;
+                let round = this.round().await?;
+
+                let res = TotalBetsInfo {
+                    pumps,
+                    dumps,
+                    round,
+                };
+
+                Response::from_json(&res)
             })
             .run(req, env)
             .await
