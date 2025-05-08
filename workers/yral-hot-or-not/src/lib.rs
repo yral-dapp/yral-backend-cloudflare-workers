@@ -45,7 +45,7 @@ fn get_hon_game_stub(ctx: &RouteContext<()>, user_principal: Principal) -> Resul
 async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
-    let req = req.json::<HoNGameVoteReq>().await?;
+    let req: HoNGameVoteReq = serde_json::from_str(&req.text().await?)?;
     if let Err((code, err)) = verify_hon_game_req(user_principal, &req) {
         return worker_err_to_resp(code, err);
     };

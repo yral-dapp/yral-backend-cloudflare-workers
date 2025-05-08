@@ -209,7 +209,7 @@ impl DurableObject for UserHonGameState {
         let router = Router::with_data(self);
         router
             .post_async("/vote", async |mut req, ctx| {
-                let req_data: VoteRequest = req.json().await?;
+                let req_data: VoteRequest = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;
                 match this
                     .vote_on_post(
