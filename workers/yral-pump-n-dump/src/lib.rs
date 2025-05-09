@@ -3,6 +3,7 @@ mod agent_wrapper;
 mod backend_impl;
 mod consts;
 mod game_object;
+mod jwt;
 mod user_reconciler;
 mod utils;
 
@@ -36,6 +37,23 @@ fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
     }
 
     Ok(())
+}
+
+fn verify_jwt_from_header(req: &Request) -> StdResult<(), (String, u16)> {
+    let jwt = req
+        .headers()
+        .get("Authorization")
+        .ok()
+        .flatten()
+        .ok_or_else(|| ("missing Authorization header".to_string(), 401))?;
+
+    let jwt = jwt.to_string();
+    if !jwt.starts_with("Bearer ") {
+        return Err(("invalid Authorization header".to_string(), 401));
+    }
+
+    let jwt = &jwt[7..];
+    jwt::verify_jwt(jwt).map_err(|_| ("invalid JWT".to_string(), 401))
 }
 
 // TODO write an abstraction around verification
@@ -107,6 +125,38 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
     bal_stub.fetch_with_request(req).await
 }
 
+async fn claim_gdolr_v2(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(&req) {
+        return Response::error(msg, code);
+    }
+
+    let req: ClaimReq = serde_json::from_str(&req.text().await?)?;
+    if let Err((msg, status)) = verify_claim_req(&req) {
+        return Response::error(msg, status);
+    }
+    let backend = WsBackend::new(&ctx.env)?;
+
+    let Some(user_canister) = backend.user_principal_to_user_canister(req.sender).await? else {
+        return Response::error("user not found", 404);
+    };
+    let bal_stub = user_state_stub(&ctx, user_canister)?;
+
+    let body = ClaimGdollrReq {
+        user_canister,
+        amount: req.amount,
+    };
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/claim_gdollr_v2",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&body)?
+            .build(),
+    )?;
+
+    bal_stub.fetch_with_request(req).await
+}
+
 async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
     let user_canister = parse_principal!(ctx, "user_canister");
 
@@ -114,6 +164,18 @@ async fn user_balance(ctx: RouteContext<()>) -> Result<Response> {
 
     let res = bal_stub
         .fetch_with_str(&format!("http://fake_url.com/balance/{user_canister}"))
+        .await?;
+
+    Ok(res)
+}
+
+async fn user_balance_v2(ctx: RouteContext<()>) -> Result<Response> {
+    let user_canister = parse_principal!(ctx, "user_canister");
+
+    let bal_stub = user_state_stub(&ctx, user_canister)?;
+
+    let res = bal_stub
+        .fetch_with_str(&format!("http://fake_url.com/balance_v2/{user_canister}"))
         .await?;
 
     Ok(res)
@@ -241,6 +303,21 @@ async fn uncommitted_games(ctx: RouteContext<()>) -> Result<Response> {
         .await
 }
 
+async fn total_bets_info(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(&req) {
+        return Response::error(msg, code);
+    }
+
+    let game_canister = parse_principal!(ctx, "game_canister");
+    let token_root = parse_principal!(ctx, "token_root");
+
+    let game_stub = game_state_stub(&ctx, game_canister, token_root)?;
+
+    game_stub
+        .fetch_with_str("http://fake_url.com/total_bets_info")
+        .await
+}
+
 fn cors_policy() -> Cors {
     Cors::new()
         .with_origins(["*"])
@@ -257,8 +334,12 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let res = router
         .post_async("/claim_gdollr", claim_gdollr)
+        .post_async("/claim_gdolr_v2", claim_gdolr_v2)
         .post_async("/place_hot_or_not_bet", place_hot_or_not_bet)
         .get_async("/balance/:user_canister", |_req, ctx| user_balance(ctx))
+        .get_async("/balance_v2/:user_canister", |_req, ctx| {
+            user_balance_v2(ctx)
+        })
         .get_async("/game_count/:user_canister", |_req, ctx| {
             user_game_count(ctx)
         })
@@ -276,6 +357,10 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/uncommitted_games/:user_canister", |_req, ctx| {
             uncommitted_games(ctx)
         })
+        .get_async(
+            "/total_bets_info/:game_canister/:token_root",
+            total_bets_info,
+        )
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

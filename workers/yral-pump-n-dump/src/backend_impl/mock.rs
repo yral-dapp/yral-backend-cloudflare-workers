@@ -36,6 +36,10 @@ impl UserStateBackendImpl for NoOpUserState {
         })
     }
 
+    async fn game_balance_v2(&self, user_canister: Principal) -> Result<BalanceInfo> {
+        self.game_balance(user_canister).await
+    }
+
     async fn reconcile_user_state(
         &self,
         _user_canister: Principal,

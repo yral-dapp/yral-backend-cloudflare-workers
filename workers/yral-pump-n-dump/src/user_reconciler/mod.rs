@@ -343,6 +343,34 @@ impl UserEphemeralState {
         Ok(bal_info)
     }
 
+    async fn effective_balance_info_v2(
+        &mut self,
+        user_canister: Principal,
+    ) -> Result<BalanceInfoResponse> {
+        let on_chain_bal = self.backend.game_balance_v2(user_canister).await?;
+        let bal_info = self.effective_balance_info_inner_v2(on_chain_bal).await?;
+
+        Ok(BalanceInfoResponse {
+            net_airdrop_reward: bal_info.net_airdrop_reward,
+            balance: bal_info.balance,
+            withdrawable: bal_info.withdrawable,
+        })
+    }
+
+    async fn effective_balance_info_inner_v2(
+        &mut self,
+        mut bal_info: BalanceInfo,
+    ) -> Result<BalanceInfo> {
+        bal_info.balance = self
+            .effective_balance_inner(bal_info.balance.clone())
+            .await?;
+
+        let treasury = self.dolr_treasury.amount(&mut self.storage()).await?;
+        bal_info.withdrawable = bal_info.withdrawable.min(treasury);
+
+        Ok(bal_info)
+    }
+
     async fn effective_balance_info(
         &mut self,
         user_canister: Principal,
@@ -546,6 +574,23 @@ impl UserEphemeralState {
         self.redeem_gdollr(user_canister, amount).await
     }
 
+    async fn claim_gdollr_v2(&mut self, user_canister: Principal, amount: Nat) -> Result<Response> {
+        let on_chain_bal = self.backend.game_balance_v2(user_canister).await?;
+        if on_chain_bal.withdrawable >= amount {
+            let res = self.redeem_gdollr(user_canister, amount).await;
+            return res;
+        }
+
+        let effective_bal = self.effective_balance_info_inner_v2(on_chain_bal).await?;
+        if amount > effective_bal.withdrawable {
+            return Response::error("not enough balance", 400);
+        }
+
+        self.settle_balance(user_canister).await?;
+
+        self.redeem_gdollr(user_canister, amount).await
+    }
+
     async fn effective_game_count(&mut self, user_canister: Principal) -> Result<u64> {
         let on_chain_count = self.backend.game_count(user_canister).await?;
         let off_chain_count = self.state_diffs().await?.len() + self.pending_games().await?.len();
@@ -600,6 +645,14 @@ impl DurableObject for UserEphemeralState {
                 let bal = this.effective_balance_info(user_canister).await?;
                 Response::from_json(&bal)
             })
+            .get_async("/balance_v2/:user_canister", |_req, ctx| async {
+                let user_canister = parse_principal!(ctx, "user_canister");
+
+                let this = ctx.data;
+                this.set_user_canister(user_canister).await?;
+                let bal = this.effective_balance_info_v2(user_canister).await?;
+                Response::from_json(&bal)
+            })
             .get_async("/earnings/:user_canister", |_req, ctx| async {
                 let user_canister = parse_principal!(ctx, "user_canister");
 
@@ -640,6 +693,15 @@ impl DurableObject for UserEphemeralState {
                 this.set_user_canister(claim_req.user_canister).await?;
 
                 this.claim_gdollr(claim_req.user_canister, claim_req.amount)
+                    .await
+            })
+            .post_async("/claim_gdollr_v2", |mut req, ctx| async move {
+                let this = ctx.data;
+                let claim_req: ClaimGdollrReq = req.json().await?;
+
+                this.set_user_canister(claim_req.user_canister).await?;
+
+                this.claim_gdollr_v2(claim_req.user_canister, claim_req.amount)
                     .await
             })
             .post_async("/place_hot_or_not_bet", |mut req, ctx| async move {
