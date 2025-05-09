@@ -8,6 +8,10 @@ use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, Uncommitt
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
 use worker::*;
+use worker_utils::{
+    parse_principal,
+    storage::{SafeStorage, StorageCell},
+};
 use yral_canisters_client::individual_user_template::{
     BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
     SystemTime,
@@ -18,11 +22,7 @@ use yral_metrics::metrics::cents_withdrawal::CentsWithdrawal;
 use crate::{
     backend_impl::{StateBackend, UserStateBackendImpl},
     consts::{GDOLLR_TO_E8S, USER_INDEX_FUND_AMOUNT, USER_STATE_RECONCILE_TIME_MS},
-    utils::{
-        metrics, parse_principal,
-        storage::{SafeStorage, StorageCell},
-        CfMetricTx,
-    },
+    utils::{metrics, CfMetricTx},
 };
 
 #[derive(Serialize, Deserialize, Clone)]

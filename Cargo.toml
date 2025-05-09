@@ -7,7 +7,9 @@ members = [
     "workers/icpump_token_cleanup",
     "workers/kv-fetch",
     "workers/yral-upload-video",
-    "workers/yral-pump-n-dump"
+    "workers/yral-pump-n-dump",
+    "workers/yral-hot-or-not",
+    "worker-utils"
 ]
 resolver = "2"
 
@@ -25,3 +27,7 @@ getrandom = { version = "0.2", features = ["js"] }
 rmp-serde = "1.3.0"
 serde_bytes = "0.11"
 jsonwebtoken = { version = "9.3.0", features = ["use_pem"] }
+worker-utils = { package = "yral-worker-utils", path = "worker-utils" }
+num-bigint = "0.4.6"
+candid = "0.10.11"
+enum_dispatch = "0.3.13"

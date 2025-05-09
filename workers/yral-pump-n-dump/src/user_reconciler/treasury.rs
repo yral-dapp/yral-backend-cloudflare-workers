@@ -1,8 +1,9 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 use worker::{Date, Result};
+use worker_utils::storage::SafeStorage;
 
-use crate::{consts::MAXIMUM_DOLR_TREASURY_PER_DAY_PER_USER, utils::storage::SafeStorage};
+use crate::consts::MAXIMUM_DOLR_TREASURY_PER_DAY_PER_USER;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct DolrTreasuryInner {

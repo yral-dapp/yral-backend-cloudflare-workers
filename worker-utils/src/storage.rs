@@ -1,8 +1,8 @@
 use std::{fmt::Debug, ops::Deref};
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_bytes::ByteBuf;
-use worker::{console_error, ListOptions, Result, Storage};
+use worker::{ListOptions, Result, Storage, console_error};
 
 pub struct SafeStorage(Storage);
 
@@ -43,7 +43,7 @@ impl SafeStorage {
         let v_js = match res {
             Ok(v) => v,
             Err(worker::Error::JsError(err)) if err.contains("No such value in storage") => {
-                return Ok(None)
+                return Ok(None);
             }
             Err(e) => {
                 console_error!("failed to get from storage. Key {}, err: {e}", key);
@@ -58,9 +58,17 @@ impl SafeStorage {
         &self,
         prefix: impl AsRef<str>,
     ) -> impl Iterator<Item = worker::Result<(String, T)>> {
+        self.list_with_options(ListOptions::new().prefix(prefix.as_ref()))
+            .await
+    }
+
+    pub async fn list_with_options<T: DeserializeOwned>(
+        &self,
+        list_options: ListOptions<'_>,
+    ) -> impl Iterator<Item = worker::Result<(String, T)>> + use<T> {
         let v_idx = self
             .0
-            .list_with_options(ListOptions::new().prefix(prefix.as_ref()))
+            .list_with_options(list_options)
             .await
             .unwrap_or_default();
 
