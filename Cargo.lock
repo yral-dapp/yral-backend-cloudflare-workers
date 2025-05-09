@@ -1443,12 +1443,13 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=rupansh%2Fhon-game#612adf76344d6e0015a9a138d0cd023542497773"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Frevamp-hon#996144ad58022ca4d5af41c57675b07f691a2a21"
 dependencies = [
  "candid",
  "num-bigint",
  "serde",
  "thiserror 2.0.12",
+ "url",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
 ]
 
@@ -5592,7 +5593,6 @@ dependencies = [
  "futures",
  "getrandom 0.2.16",
  "ic-agent 0.38.2",
- "jsonwebtoken",
  "k256",
  "num-bigint",
  "serde",
@@ -5667,6 +5667,7 @@ name = "yral-worker-utils"
 version = "0.1.0"
 dependencies = [
  "candid",
+ "jsonwebtoken",
  "rmp-serde",
  "serde",
  "serde-wasm-bindgen 0.6.5",

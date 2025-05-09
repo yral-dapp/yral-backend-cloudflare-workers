@@ -1,10 +1,8 @@
 use candid::Principal;
 use ic_agent::{Agent, AgentError, Identity};
+use worker_utils::environment::{env_kind, RunEnv};
 
-use crate::{
-    consts::agent_url,
-    utils::{env_kind, RunEnv},
-};
+use crate::consts::agent_url;
 
 #[derive(Clone)]
 pub struct AgentWrapper(Agent);

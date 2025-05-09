@@ -4,10 +4,6 @@ version = "0.1.0"
 edition = "2021"
 authors = ["rupansh <rupanshsekar@hotmail.com>"]
 
-[[bin]]
-name = "jwt-secret-gen"
-path = "src/jwt-gen.rs"
-
 [package.metadata.release]
 release = false
 
@@ -36,7 +32,6 @@ getrandom = { version = "0.2.15", features = ["js"] }
 uuid = { version = "1.11.0", default-features = false, features = ["serde"] }
 k256 = "0.13.4"
 ciborium = "0.2.2"
-jsonwebtoken = "9"
 
 # yral specific stuff
 yral-metadata-client = { git = "https://github.com/yral-dapp/yral-metadata", rev = "bf89af87c246c73109d65d3febf009e6ed3c4748" }

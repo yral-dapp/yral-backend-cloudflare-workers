@@ -1,29 +1,6 @@
 use candid::Principal;
-use serde::Serialize;
-use wasm_bindgen_futures::wasm_bindgen;
-use worker::{Headers, Method, RequestInit, Result, RouteContext, Stub};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum RunEnv {
-    Mock,
-    Local,
-    Remote,
-}
-
-pub const fn env_kind() -> RunEnv {
-    let Some(test_v) = option_env!("ENV") else {
-        return RunEnv::Remote;
-    };
-
-    match test_v.as_bytes() {
-        b"mock" | b"MOCK" => RunEnv::Mock,
-        b"local" | b"LOCAL" => RunEnv::Local,
-        _ => RunEnv::Remote,
-    }
-}
-
-
-
+use worker::{Result, RouteContext, Stub};
+use worker_utils::environment::{env_kind, RunEnv};
 use yral_metrics::{
     metric_sender::{
         js_spawn::JsSpawnMetricTx, mock::MaybeMockLocalMetricEventTx, vectordb::VectorDbMetricTx,

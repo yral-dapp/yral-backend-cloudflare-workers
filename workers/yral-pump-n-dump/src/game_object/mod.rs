@@ -21,7 +21,7 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 use worker::*;
-use worker_utils::{RequestInitBuilder, storage::SafeStorage};
+use worker_utils::{storage::SafeStorage, RequestInitBuilder};
 use yral_metrics::metrics::tides_turned::TidesTurned;
 
 #[derive(Serialize, Deserialize, Clone, Copy)]

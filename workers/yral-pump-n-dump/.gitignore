@@ -1,4 +1,3 @@
 target
 node_modules
 .wrangler
-pd_jwt.pem

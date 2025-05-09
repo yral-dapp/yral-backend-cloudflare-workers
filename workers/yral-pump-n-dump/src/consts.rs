@@ -1,6 +1,5 @@
 use candid::Principal;
-
-use crate::utils::{env_kind, RunEnv};
+use worker_utils::environment::{env_kind, RunEnv};
 
 pub const GDOLLR_TO_DOLLR: u64 = 100;
 pub const DOLLR_TO_E8S: u64 = 1e8 as u64;

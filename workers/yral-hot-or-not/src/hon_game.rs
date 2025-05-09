@@ -6,15 +6,18 @@ use hon_worker_common::{
     SatsBalanceInfo, VoteRequest, VoteRes, WorkerError,
 };
 use num_bigint::BigUint;
+use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::storage::{SafeStorage, StorageCell};
 
-use crate::{
-    consts::DEFAULT_ONBOARDING_REWARD_SATS,
-    hon_sentiment_oracle::{HoNSentimentOracle, HoNSentimentOracleImpl},
-    utils::worker_err_to_resp,
-};
+use crate::{consts::DEFAULT_ONBOARDING_REWARD_SATS, utils::worker_err_to_resp};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct VoteRequestWithSentiment {
+    pub request: VoteRequest,
+    pub sentiment: HotOrNot,
+}
 
 #[durable_object]
 pub struct UserHonGameState {
@@ -24,7 +27,6 @@ pub struct UserHonGameState {
     airdrop_amount: StorageCell<BigUint>,
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
-    sentiment_oracle: HoNSentimentOracle,
 }
 
 impl UserHonGameState {
@@ -110,6 +112,7 @@ impl UserHonGameState {
         post_id: u64,
         vote_amount: u128,
         direction: HotOrNot,
+        sentiment: HotOrNot,
     ) -> StdResult<VoteRes, (u16, WorkerError)> {
         let game_info = self
             .game_info(post_canister, post_id)
@@ -118,13 +121,6 @@ impl UserHonGameState {
         if game_info.is_some() {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
-
-        let sentiment = self
-            .sentiment_oracle
-            .get_post_sentiment(post_canister, post_id)
-            .await
-            .map_err(|_| (500, WorkerError::Internal("failed to get sentiment".into())))?
-            .ok_or((404, WorkerError::PostNotFound))?;
 
         let mut storage = self.storage();
         let mut result = None::<GameResult>;
@@ -186,11 +182,6 @@ impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
 
-        let sentiment_oracle = match HoNSentimentOracle::new() {
-            Ok(oracle) => oracle,
-            Err(e) => panic!("failed to create sentiment oracle {e}"),
-        };
-
         Self {
             state,
             env,
@@ -201,7 +192,6 @@ impl DurableObject for UserHonGameState {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
             games: None,
-            sentiment_oracle,
         }
     }
 
@@ -210,14 +200,15 @@ impl DurableObject for UserHonGameState {
         let router = Router::with_data(self);
         router
             .post_async("/vote", async |mut req, ctx| {
-                let req_data: VoteRequest = serde_json::from_str(&req.text().await?)?;
+                let req_data: VoteRequestWithSentiment = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;
                 match this
                     .vote_on_post(
-                        req_data.post_canister,
-                        req_data.post_id,
-                        req_data.vote_amount,
-                        req_data.direction,
+                        req_data.request.post_canister,
+                        req_data.request.post_id,
+                        req_data.request.vote_amount,
+                        req_data.request.direction,
+                        req_data.sentiment,
                     )
                     .await
                 {

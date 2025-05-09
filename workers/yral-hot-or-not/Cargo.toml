@@ -28,4 +28,4 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "wasm-bindgen",
 ] }
 #hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "rupansh/hon-game" }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "feat/revamp-hon" }

@@ -1,16 +1,18 @@
 mod consts;
 mod hon_game;
-mod hon_sentiment_oracle;
+mod jwt;
 mod utils;
 
 use candid::Principal;
+use hon_game::VoteRequestWithSentiment;
 use hon_worker_common::{
     hon_game_vote_msg, GameInfoReq, HoNGameVoteReq, PaginatedGamesReq, WorkerError,
 };
+use jwt::{JWT_AUD, JWT_PUBKEY};
 use std::result::Result as StdResult;
 use utils::worker_err_to_resp;
 use worker::*;
-use worker_utils::{parse_principal, RequestInitBuilder};
+use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 
 fn cors_policy() -> Cors {
     Cors::new()
@@ -43,6 +45,10 @@ fn get_hon_game_stub(ctx: &RouteContext<()>, user_principal: Principal) -> Resul
 }
 
 async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
+
     let user_principal = parse_principal!(ctx, "user_principal");
 
     let req: HoNGameVoteReq = serde_json::from_str(&req.text().await?)?;
@@ -52,11 +58,16 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
 
     let game_stub = get_hon_game_stub(&ctx, user_principal)?;
 
+    let req = VoteRequestWithSentiment {
+        request: req.request,
+        sentiment: req.fetched_sentiment,
+    };
+
     let req = Request::new_with_init(
         "http://fake_url.com/vote",
         RequestInitBuilder::default()
             .method(Method::Post)
-            .json(&req.request)?
+            .json(&req)?
             .build(),
     )?;
 
