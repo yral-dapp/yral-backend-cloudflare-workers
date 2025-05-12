@@ -76,9 +76,10 @@ impl UserHonGameState {
             .await
             .map(|v| {
                 v.map(|(k, v)| {
-                    let mut split_iter = k.strip_prefix("games-").unwrap().split("-");
-                    let canister_id = Principal::from_text(split_iter.next().unwrap()).unwrap();
-                    let post_id = split_iter.next().unwrap().parse::<u64>().unwrap();
+                    let (can_raw, post_raw) =
+                        k.strip_prefix("games-").unwrap().rsplit_once("-").unwrap();
+                    let canister_id = Principal::from_text(can_raw).unwrap();
+                    let post_id = post_raw.parse::<u64>().unwrap();
                     GameRes {
                         post_canister: canister_id,
                         post_id,
