@@ -30,3 +30,4 @@ jobs:
               BACKEND_ADMIN_KEY
           env:
             BACKEND_ADMIN_KEY: ${{ secrets.YRAL_DAPP_BACKEND_APP_ADMIN_AND_PROPOSAL_SUBMITTER_IDENTITY_PRIVATE_KEY }}
+            ENV: REMOTE
