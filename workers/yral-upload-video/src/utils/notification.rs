@@ -4,7 +4,7 @@ use candid::Principal;
 use serde::{Deserialize, Serialize};
 use worker::console_error;
 
-const METADATA_SERVER_URL: &str = "https://yral-metadata.fly.dev/";
+const METADATA_SERVER_URL: &str = "https://yral-metadata.fly.dev";
 
 pub struct NotificationClient {
     api_key: String,
