@@ -1,5 +1,4 @@
 mod admin_cans;
-mod agent_wrapper;
 mod backend_impl;
 mod consts;
 mod game_object;

@@ -1,5 +1,4 @@
 use candid::Principal;
-use worker_utils::environment::{env_kind, RunEnv};
 
 pub const GDOLLR_TO_DOLLR: u64 = 100;
 pub const DOLLR_TO_E8S: u64 = 1e8 as u64;
@@ -18,11 +17,3 @@ pub const DOLR_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 0, 0, 
 pub const MAXIMUM_DOLR_TREASURY_PER_DAY_PER_USER: u64 = 100 * 1e8 as u64;
 // 400 DOLLR
 pub const USER_INDEX_FUND_AMOUNT: u64 = 400 * 1e8 as u64;
-
-pub const fn agent_url() -> &'static str {
-    match env_kind() {
-        RunEnv::Remote => "https://ic0.app",
-        RunEnv::Local => "http://localhost:4943",
-        RunEnv::Mock => panic!("trying to get `AGENT_URL` in mock env"),
-    }
-}

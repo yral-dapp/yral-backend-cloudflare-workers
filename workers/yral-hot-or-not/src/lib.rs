@@ -1,12 +1,15 @@
 mod consts;
 mod hon_game;
 mod jwt;
+mod treasury;
+mod treasury_obj;
 mod utils;
 
 use candid::Principal;
 use hon_game::VoteRequestWithSentiment;
 use hon_worker_common::{
-    hon_game_vote_msg, GameInfoReq, HoNGameVoteReq, PaginatedGamesReq, WorkerError,
+    hon_game_vote_msg, hon_game_withdraw_msg, GameInfoReq, HoNGameVoteReq, HoNGameWithdrawReq,
+    PaginatedGamesReq, WorkerError,
 };
 use jwt::{JWT_AUD, JWT_PUBKEY};
 use std::result::Result as StdResult;
@@ -128,6 +131,38 @@ async fn paginated_games(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
     Ok(res)
 }
 
+fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, WorkerError)> {
+    let msg = hon_game_withdraw_msg(&req.request);
+
+    req.signature
+        .clone()
+        .verify_identity(req.request.receiver, msg)
+        .map_err(|_| (401, WorkerError::InvalidSignature))?;
+
+    Ok(())
+}
+
+async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
+    if let Err(e) = verify_hon_withdraw_req(&req) {
+        return worker_err_to_resp(e.0, e.1);
+    }
+
+    let game_stub = get_hon_game_stub(&ctx, req.request.receiver)?;
+
+    let req = Request::new_with_init(
+        "http://fake_url.com/withdraw",
+        RequestInitBuilder::default()
+            .method(Method::Post)
+            .json(&req.request)?
+            .build(),
+    )?;
+
+    let res = game_stub.fetch_with_request(req).await?;
+
+    Ok(res)
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -145,6 +180,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/vote/:user_principal", |req, ctx| {
             place_hot_or_not_vote(req, ctx)
         })
+        .post_async("/withdraw", withdraw_sats)
         .options("/*catchall", |_, _| Response::empty())
         .run(req, env)
         .await?;

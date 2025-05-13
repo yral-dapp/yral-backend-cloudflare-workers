@@ -2,6 +2,7 @@ use serde::Serialize;
 use worker::*;
 
 pub mod environment;
+pub mod icp;
 pub mod jwt;
 pub mod storage;
 

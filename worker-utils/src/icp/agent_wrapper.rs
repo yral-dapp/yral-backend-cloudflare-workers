@@ -1,8 +1,14 @@
+use crate::environment::{RunEnv, env_kind};
 use candid::Principal;
 use ic_agent::{Agent, AgentError, Identity};
-use worker_utils::environment::{env_kind, RunEnv};
 
-use crate::consts::agent_url;
+pub const fn agent_url() -> &'static str {
+    match env_kind() {
+        RunEnv::Remote => "https://ic0.app",
+        RunEnv::Local => "http://localhost:4943",
+        RunEnv::Mock => panic!("trying to get `AGENT_URL` in mock env"),
+    }
+}
 
 #[derive(Clone)]
 pub struct AgentWrapper(Agent);

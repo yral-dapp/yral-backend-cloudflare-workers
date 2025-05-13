@@ -2,16 +2,16 @@ use candid::Principal;
 use ic_agent::identity::Secp256k1Identity;
 use k256::SecretKey;
 use worker::{Env, Result};
-use worker_utils::environment::{env_kind, RunEnv};
+use worker_utils::{
+    environment::{env_kind, RunEnv},
+    icp::agent_wrapper::AgentWrapper,
+};
 use yral_canisters_client::{
     individual_user_template::IndividualUserTemplate, sns_ledger::SnsLedger,
 };
 use yral_metadata_client::MetadataClient;
 
-use crate::{
-    agent_wrapper::AgentWrapper,
-    consts::{ADMIN_LOCAL_SECP_SK, DOLR_LEDGER, LOCAL_METADATA_API_BASE},
-};
+use crate::consts::{ADMIN_LOCAL_SECP_SK, DOLR_LEDGER, LOCAL_METADATA_API_BASE};
 
 #[derive(Clone)]
 pub struct AdminCans {

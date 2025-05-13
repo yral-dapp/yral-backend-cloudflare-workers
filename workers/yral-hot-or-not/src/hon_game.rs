@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use candid::Principal;
 use hon_worker_common::{
     GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    SatsBalanceInfo, VoteRequest, VoteRes, WorkerError,
+    SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
 };
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,12 @@ use std::result::Result as StdResult;
 use worker::*;
 use worker_utils::storage::{SafeStorage, StorageCell};
 
-use crate::{consts::DEFAULT_ONBOARDING_REWARD_SATS, utils::worker_err_to_resp};
+use crate::{
+    consts::DEFAULT_ONBOARDING_REWARD_SATS,
+    treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
+    treasury_obj::CkBtcTreasuryStore,
+    utils::worker_err_to_resp,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VoteRequestWithSentiment {
@@ -23,6 +28,8 @@ pub struct VoteRequestWithSentiment {
 pub struct UserHonGameState {
     state: State,
     env: Env,
+    treasury: CkBtcTreasuryImpl,
+    treasury_amount: CkBtcTreasuryStore,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
     // (canister_id, post_id) -> GameInfo
@@ -96,6 +103,84 @@ impl UserHonGameState {
         };
 
         Ok(PaginatedGamesRes { games, next })
+    }
+
+    async fn redeem_sats_for_ckbtc(
+        &mut self,
+        user_principal: Principal,
+        amount: BigUint,
+    ) -> StdResult<(), (u16, WorkerError)> {
+        let mut storage = self.storage();
+
+        let mut insufficient_funds = false;
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                if *balance < amount {
+                    insufficient_funds = true;
+                    return;
+                }
+                *balance -= amount.clone();
+            })
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to update balance".into()),
+                )
+            })?;
+        if insufficient_funds {
+            return Err((400, WorkerError::InsufficientFunds));
+        }
+
+        if self
+            .treasury_amount
+            .try_consume(&mut storage, amount.clone())
+            .await
+            .is_err()
+        {
+            self.sats_balance
+                .update(&mut storage, |balance| {
+                    *balance += amount.clone();
+                })
+                .await
+                .map_err(|_| {
+                    (
+                        500,
+                        WorkerError::Internal("failed to update balance".into()),
+                    )
+                })?;
+            return Err((400, WorkerError::TreasuryLimitReached));
+        }
+
+        if let Err(e) = self
+            .treasury
+            .transfer_ckbtc(user_principal, amount.clone().into())
+            .await
+        {
+            self.treasury_amount
+                .rollback(&mut storage, amount.clone())
+                .await
+                .map_err(|_| {
+                    (
+                        500,
+                        WorkerError::Internal("failed to rollback treasury".into()),
+                    )
+                })?;
+            self.sats_balance
+                .update(&mut storage, |balance| {
+                    *balance += amount.clone();
+                })
+                .await
+                .map_err(|_| {
+                    (
+                        500,
+                        WorkerError::Internal("failed to update balance".into()),
+                    )
+                })?;
+            return Err(e);
+        }
+
+        Ok(())
     }
 
     async fn game_info(
@@ -183,9 +268,13 @@ impl DurableObject for UserHonGameState {
     fn new(state: State, env: Env) -> Self {
         console_error_panic_hook::set_once();
 
+        let treasury = CkBtcTreasuryImpl::new(&env).expect("failed to create treasury");
+
         Self {
             state,
             env,
+            treasury,
+            treasury_amount: CkBtcTreasuryStore::default(),
             sats_balance: StorageCell::new("sats_balance", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
@@ -244,6 +333,18 @@ impl DurableObject for UserHonGameState {
                     .await?;
 
                 Response::from_json(&res)
+            })
+            .post_async("/withdraw", async |mut req, ctx| {
+                let req_data: WithdrawRequest = req.json().await?;
+                let this = ctx.data;
+                let res = this
+                    .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
+                    .await;
+                if let Err(e) = res {
+                    return worker_err_to_resp(e.0, e.1);
+                }
+
+                Response::ok("done")
             })
             .run(req, env)
             .await
