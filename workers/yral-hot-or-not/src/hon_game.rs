@@ -136,6 +136,9 @@ impl UserHonGameState {
             .treasury_amount
             .try_consume(&mut storage, amount.clone())
             .await
+            .inspect_err(|err| {
+                console_error!("withdraw error with treasury: {err:?}");
+            })
             .is_err()
         {
             self.sats_balance
