@@ -143,6 +143,9 @@ fn verify_hon_withdraw_req(req: &HoNGameWithdrawReq) -> StdResult<(), (u16, Work
 }
 
 async fn withdraw_sats(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
+        return Response::error(msg, code);
+    };
     let req: HoNGameWithdrawReq = serde_json::from_str(&req.text().await?)?;
     if let Err(e) = verify_hon_withdraw_req(&req) {
         return worker_err_to_resp(e.0, e.1);
