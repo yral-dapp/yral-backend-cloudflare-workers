@@ -2,7 +2,7 @@ use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
 use hon_worker_common::WorkerError;
 use ic_agent::identity::Secp256k1Identity;
-use worker::Env;
+use worker::{console_log, Env};
 use worker_utils::{
     environment::{env_kind, RunEnv},
     icp::agent_wrapper::AgentWrapper,
@@ -41,6 +41,7 @@ impl AdminCkBtcTreasury {
 
 impl CkBtcTreasury for AdminCkBtcTreasury {
     async fn transfer_ckbtc(&self, to: Principal, amount: Nat) -> Result<(), (u16, WorkerError)> {
+        console_log!("ledger: {}; to: {}", CKBTC_LEDGER.to_text(), to.to_text());
         let ledger = SnsLedger(CKBTC_LEDGER, self.0.get().await);
 
         let res = ledger

@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use worker::{Date, Result};
+use worker::{console_debug, console_log, Date, Result};
 use worker_utils::storage::SafeStorage;
 
 use crate::consts::MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER;
@@ -50,6 +50,7 @@ impl CkBtcTreasuryStore {
 
     pub async fn try_consume(&mut self, storage: &mut SafeStorage, amount: BigUint) -> Result<()> {
         let treasury = self.treasury(storage).await?;
+        console_debug!("treasury amount: {}", treasury.amount.clone());
         if treasury.amount.clone() < amount {
             return Err(worker::Error::RustError("daily limit reached".into()));
         }
