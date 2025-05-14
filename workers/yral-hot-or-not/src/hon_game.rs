@@ -335,7 +335,7 @@ impl DurableObject for UserHonGameState {
                 Response::from_json(&res)
             })
             .post_async("/withdraw", async |mut req, ctx| {
-                let req_data: WithdrawRequest = req.json().await?;
+                let req_data: WithdrawRequest = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;
                 let res = this
                     .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
