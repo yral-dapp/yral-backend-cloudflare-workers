@@ -242,10 +242,9 @@ impl UserHonGameState {
                     return;
                 }
                 let game_res = if sentiment == direction {
-                    *balance += (vote_amount.clone() * 8u32) / 10u32;
-                    GameResult::Win {
-                        win_amt: vote_amount.clone(),
-                    }
+                    let win_amt = (vote_amount.clone() * 8u32) / 10u32;
+                    *balance += win_amt.clone();
+                    GameResult::Win { win_amt }
                 } else {
                     *balance -= vote_amount.clone();
                     GameResult::Loss {
