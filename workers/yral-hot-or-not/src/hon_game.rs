@@ -9,10 +9,14 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use worker::*;
-use worker_utils::storage::{SafeStorage, StorageCell};
+use worker_utils::{
+    storage::{SafeStorage, StorageCell},
+    RequestInitBuilder,
+};
 
 use crate::{
     consts::DEFAULT_ONBOARDING_REWARD_SATS,
+    get_hon_game_stub_env,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
     treasury_obj::CkBtcTreasuryStore,
     utils::worker_err_to_resp,
@@ -22,6 +26,7 @@ use crate::{
 pub struct VoteRequestWithSentiment {
     pub request: VoteRequest,
     pub sentiment: HotOrNot,
+    pub post_creator: Option<Principal>,
 }
 
 #[durable_object]
@@ -195,6 +200,21 @@ impl UserHonGameState {
         Ok(games.get(&(post_canister, post_id)).cloned())
     }
 
+    async fn add_creator_reward(&mut self, reward: u128) -> StdResult<(), (u16, WorkerError)> {
+        let mut storage = self.storage();
+        self.sats_balance
+            .update(&mut storage, |bal| {
+                *bal += reward;
+            })
+            .await
+            .map_err(|_| {
+                (
+                    500,
+                    WorkerError::Internal("failed to update balance".into()),
+                )
+            })
+    }
+
     async fn vote_on_post(
         &mut self,
         post_canister: Principal,
@@ -202,6 +222,7 @@ impl UserHonGameState {
         vote_amount: u128,
         direction: HotOrNot,
         sentiment: HotOrNot,
+        creator_principal: Option<Principal>,
     ) -> StdResult<VoteRes, (u16, WorkerError)> {
         let game_info = self
             .game_info(post_canister, post_id)
@@ -212,25 +233,26 @@ impl UserHonGameState {
         }
 
         let mut storage = self.storage();
-        let mut result = None::<GameResult>;
+        let mut res = None::<(GameResult, u128)>;
         self.sats_balance
             .update(&mut storage, |balance| {
+                let creator_reward = vote_amount / 10;
                 let vote_amount = BigUint::from(vote_amount);
                 if *balance < vote_amount {
                     return;
                 }
-                if sentiment == direction {
-                    // TODO: add a reward for the creator
-                    *balance += vote_amount.clone();
-                    result = Some(GameResult::Win {
+                let game_res = if sentiment == direction {
+                    *balance += (vote_amount.clone() * 8u32) / 10u32;
+                    GameResult::Win {
                         win_amt: vote_amount.clone(),
-                    });
+                    }
                 } else {
                     *balance -= vote_amount.clone();
-                    result = Some(GameResult::Loss {
+                    GameResult::Loss {
                         lose_amt: vote_amount.clone(),
-                    });
-                }
+                    }
+                };
+                res = Some((game_res, creator_reward))
             })
             .await
             .map_err(|_| {
@@ -240,9 +262,27 @@ impl UserHonGameState {
                 )
             })?;
 
-        let Some(game_result) = result else {
+        let Some((game_result, creator_reward)) = res else {
             return Err((400, WorkerError::InsufficientFunds));
         };
+
+        if let Some(creator_principal) = creator_principal {
+            let game_stub = get_hon_game_stub_env(&self.env, creator_principal)
+                .map_err(|_| (500, WorkerError::Internal("failed to get game stub".into())))?;
+            let req = Request::new_with_init(
+                "http://fake_url.com/creator_reward",
+                RequestInitBuilder::default()
+                    .method(Method::Post)
+                    .json(&creator_reward)
+                    .unwrap()
+                    .build(),
+            )
+            .expect("creator reward should build?!");
+            let res = game_stub.fetch_with_request(req).await;
+            if let Err(e) = res {
+                eprintln!("failed to reward creator {e}");
+            }
+        }
 
         let game_info = GameInfo::Vote {
             vote_amount: BigUint::from(vote_amount),
@@ -302,6 +342,7 @@ impl DurableObject for UserHonGameState {
                         req_data.request.vote_amount,
                         req_data.request.direction,
                         req_data.sentiment,
+                        req_data.post_creator,
                     )
                     .await
                 {
@@ -343,6 +384,16 @@ impl DurableObject for UserHonGameState {
                 let res = this
                     .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
                     .await;
+                if let Err(e) = res {
+                    return worker_err_to_resp(e.0, e.1);
+                }
+
+                Response::ok("done")
+            })
+            .post_async("/creator_reward", async |mut req, ctx| {
+                let amount: u128 = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+                let res = this.add_creator_reward(amount).await;
                 if let Err(e) = res {
                     return worker_err_to_resp(e.0, e.1);
                 }

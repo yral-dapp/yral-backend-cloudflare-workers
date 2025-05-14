@@ -30,7 +30,7 @@ impl CkBtcTreasuryStore {
         }
 
         let dolr_treasury_limit = storage
-            .get("ckbtc-treasury-limit-v2")
+            .get("ckbtc-treasury-limit-v3")
             .await?
             .unwrap_or_default();
         self.0 = Some(dolr_treasury_limit);
@@ -42,7 +42,7 @@ impl CkBtcTreasuryStore {
         // if last set epoch is greater than 24 hours from now
         if treasury.last_reset_epoch >= Date::now().as_millis() + (24 * 3600 * 1000) {
             *treasury = CkBtcTreasuryInner::default();
-            storage.put("ckbtc-treasury-limit-v2", treasury).await?;
+            storage.put("ckbtc-treasury-limit-v3", treasury).await?;
         };
 
         Ok(treasury)
@@ -55,7 +55,7 @@ impl CkBtcTreasuryStore {
             return Err(worker::Error::RustError("daily limit reached".into()));
         }
         treasury.amount -= amount;
-        storage.put("ckbtc-treasury-limit-v2", treasury).await?;
+        storage.put("ckbtc-treasury-limit-v3", treasury).await?;
 
         Ok(())
     }
@@ -64,7 +64,7 @@ impl CkBtcTreasuryStore {
         let treasury = self.treasury(storage).await?;
         treasury.amount =
             (treasury.amount.clone() + amount).min(MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER.into());
-        storage.put("ckbtc-treasury-limit-v2", treasury).await?;
+        storage.put("ckbtc-treasury-limit-v3", treasury).await?;
 
         Ok(())
     }

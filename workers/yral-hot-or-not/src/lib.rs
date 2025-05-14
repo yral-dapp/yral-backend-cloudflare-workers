@@ -39,8 +39,16 @@ fn verify_hon_game_req(
     Ok(())
 }
 
-fn get_hon_game_stub(ctx: &RouteContext<()>, user_principal: Principal) -> Result<Stub> {
+fn get_hon_game_stub<T>(ctx: &RouteContext<T>, user_principal: Principal) -> Result<Stub> {
     let game_ns = ctx.durable_object("USER_HON_GAME_STATE")?;
+    let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
+    let game_stub = game_state_obj.get_stub()?;
+
+    Ok(game_stub)
+}
+
+fn get_hon_game_stub_env(env: &Env, user_principal: Principal) -> Result<Stub> {
+    let game_ns = env.durable_object("USER_HON_GAME_STATE")?;
     let game_state_obj = game_ns.id_from_name(&user_principal.to_text())?;
     let game_stub = game_state_obj.get_stub()?;
 
@@ -64,6 +72,7 @@ async fn place_hot_or_not_vote(mut req: Request, ctx: RouteContext<()>) -> Resul
     let req = VoteRequestWithSentiment {
         request: req.request,
         sentiment: req.fetched_sentiment,
+        post_creator: req.post_creator,
     };
 
     let req = Request::new_with_init(
