@@ -2,8 +2,6 @@ use candid::Principal;
 
 pub const DEFAULT_ONBOARDING_REWARD_SATS: u64 = 1000;
 // mxzaz-hqaaa-aaaar-qaada-cai
-pub const CKBTC_LEDGER: Principal = Principal::from_slice(&[
-    0, 0, 0, 0, 2, 48, 0, 6, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-]);
+pub const CKBTC_LEDGER: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 6, 1, 1]);
 // 100 Satoshis
 pub const MAXIMUM_CKBTC_TREASURY_PER_DAY_PER_USER: u32 = 100u32;
