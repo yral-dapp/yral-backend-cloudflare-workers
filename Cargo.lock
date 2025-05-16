@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Frevamp-hon#c521c5e6ee2c6f882d9000e1818c5b9757d4c192"
+source = "git+https://github.com/dolr-ai/yral-common?branch=master#43ff8a07115471fe4627e7278f768aaa898349fa"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5401,21 +5401,6 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=feat%2Frevamp-hon#c521c5e6ee2c6f882d9000e1818c5b9757d4c192"
-dependencies = [
- "anyhow",
- "candid",
- "candid_parser",
- "convert_case 0.6.0",
- "ic-agent 0.38.2",
- "serde",
- "serde_bytes",
- "serde_json",
-]
-
-[[package]]
-name = "yral-canisters-client"
-version = "0.1.0"
 source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
 dependencies = [
  "anyhow",
@@ -5450,7 +5435,7 @@ dependencies = [
  "thiserror 2.0.12",
  "url",
  "web-time",
- "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
+ "yral-canisters-client",
  "yral-grpc-traits",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295)",
@@ -5484,7 +5469,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=feat%2Frevamp-hon)",
+ "yral-canisters-client",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-worker-utils",
 ]
@@ -5621,7 +5606,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
+ "yral-canisters-client",
  "yral-canisters-common",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748)",
@@ -5639,7 +5624,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
- "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
+ "yral-canisters-client",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
 ]
 

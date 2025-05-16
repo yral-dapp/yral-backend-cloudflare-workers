@@ -39,8 +39,7 @@ impl CkBtcTreasuryStore {
 
     async fn treasury(&mut self, storage: &mut SafeStorage) -> Result<&mut CkBtcTreasuryInner> {
         let treasury = self.get_or_init(storage).await?;
-        // if last set epoch is greater than 24 hours from now
-        if treasury.last_reset_epoch >= Date::now().as_millis() + (24 * 3600 * 1000) {
+        if Date::now().as_millis() - (24 * 3600 * 1000) >= treasury.last_reset_epoch {
             *treasury = CkBtcTreasuryInner::default();
             storage.put("ckbtc-treasury-limit-v3", treasury).await?;
         };
