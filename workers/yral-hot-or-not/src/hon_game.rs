@@ -232,7 +232,7 @@ impl UserHonGameState {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
 
-        vote_amount = vote_amount.max(MAXIMUM_VOTE_AMOUNT_SATS);
+        vote_amount = vote_amount.min(MAXIMUM_VOTE_AMOUNT_SATS);
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128)>;
