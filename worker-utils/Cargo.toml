@@ -1,0 +1,22 @@
+[package]
+name = "yral-worker-utils"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "jwt-secret-gen"
+path = "src/jwt-gen.rs"
+
+[dependencies]
+worker.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+rmp-serde.workspace = true
+serde-wasm-bindgen.workspace = true
+candid.workspace = true
+serde_json.workspace = true
+jsonwebtoken.workspace = true
+
+# crate specific stuff
+ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
+ciborium = "0.2.2"

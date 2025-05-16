@@ -1,5 +1,4 @@
 mod admin_cans;
-mod agent_wrapper;
 mod backend_impl;
 mod consts;
 mod game_object;
@@ -9,6 +8,7 @@ mod utils;
 
 use backend_impl::{WsBackend, WsBackendImpl};
 use candid::Principal;
+use jwt::{JWT_AUD, JWT_PUBKEY};
 use pump_n_dump_common::{
     rest::{claim_msg, ClaimReq},
     ws::identify_message,
@@ -16,8 +16,9 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use user_reconciler::{ClaimGdollrReq, HotOrNotBetRequest};
-use utils::{game_state_stub, parse_principal, user_state_stub, RequestInitBuilder};
+use utils::{game_state_stub, user_state_stub};
 use worker::*;
+use worker_utils::{jwt::verify_jwt_from_header, parse_principal, RequestInitBuilder};
 use yral_canisters_common::utils::vote::{verifiable_hon_bet_message, VerifiableHonBetReq};
 use yral_identity::Signature;
 
@@ -36,23 +37,6 @@ fn verify_claim_req(req: &ClaimReq) -> StdResult<(), (String, u16)> {
     }
 
     Ok(())
-}
-
-fn verify_jwt_from_header(req: &Request) -> StdResult<(), (String, u16)> {
-    let jwt = req
-        .headers()
-        .get("Authorization")
-        .ok()
-        .flatten()
-        .ok_or_else(|| ("missing Authorization header".to_string(), 401))?;
-
-    let jwt = jwt.to_string();
-    if !jwt.starts_with("Bearer ") {
-        return Err(("invalid Authorization header".to_string(), 401));
-    }
-
-    let jwt = &jwt[7..];
-    jwt::verify_jwt(jwt).map_err(|_| ("invalid JWT".to_string(), 401))
 }
 
 // TODO write an abstraction around verification
@@ -125,7 +109,7 @@ async fn claim_gdollr(mut req: Request, ctx: RouteContext<()>) -> Result<Respons
 }
 
 async fn claim_gdolr_v2(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    if let Err((msg, code)) = verify_jwt_from_header(&req) {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
         return Response::error(msg, code);
     }
 
@@ -303,7 +287,7 @@ async fn uncommitted_games(ctx: RouteContext<()>) -> Result<Response> {
 }
 
 async fn total_bets_info(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    if let Err((msg, code)) = verify_jwt_from_header(&req) {
+    if let Err((msg, code)) = verify_jwt_from_header(JWT_PUBKEY, JWT_AUD.into(), &req) {
         return Response::error(msg, code);
     }
 

@@ -1,0 +1,42 @@
+[package]
+name = "yral-hot-or-not"
+version = "0.1.0"
+edition = "2021"
+authors = [ "rupansh <rupanshsekar@hotmail.com>" ]
+
+[package.metadata.release]
+release = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker.workspace = true
+worker-macros.workspace = true
+console_error_panic_hook.workspace = true
+worker-utils.workspace = true
+num-bigint.workspace = true
+candid.workspace = true
+serde.workspace = true
+wasm-bindgen-futures.workspace = true
+enum_dispatch.workspace = true
+serde_json.workspace = true
+
+# crate specific stuff
+getrandom = { version = "0.2.15", features = ["js"] }
+k256 = "0.13.4"
+ic-agent = { version = "0.38.1", features = ["wasm-bindgen"] }
+
+# yral deps
+yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adbf4be5cb62a26f2a90032261321bf1df33f08b", default-features = false, features = [
+    "ic-git",
+    "wasm-bindgen",
+] }
+# hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+# yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
+#     "sns-ledger",
+# ] }
+yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
+    "sns-ledger",
+] }

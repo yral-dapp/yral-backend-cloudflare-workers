@@ -9,7 +9,7 @@ use crate::{
     backend_impl::{GameBackend, GameBackendImpl},
     consts::{GDOLLR_TO_E8S, TIDE_SHIFT_DELTA},
     user_reconciler::{AddRewardReq, DecrementReq, StateDiff},
-    utils::{metrics, storage::SafeStorage, CfMetricTx, RequestInitBuilder},
+    utils::{metrics, CfMetricTx},
 };
 use candid::{Nat, Principal};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -21,6 +21,7 @@ use pump_n_dump_common::{
 use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 use worker::*;
+use worker_utils::{storage::SafeStorage, RequestInitBuilder};
 use yral_metrics::metrics::tides_turned::TidesTurned;
 
 #[derive(Serialize, Deserialize, Clone, Copy)]

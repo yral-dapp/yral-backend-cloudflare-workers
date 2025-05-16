@@ -5,14 +5,12 @@ use candid::{Nat, Principal};
 use enum_dispatch::enum_dispatch;
 use mock::{MockWsBackend, NoOpGameBackend, NoOpUserState};
 use worker::{Env, Result};
+use worker_utils::environment::{env_kind, RunEnv};
 use yral_canisters_client::individual_user_template::{
     BalanceInfo, BetOnCurrentlyViewingPostError, BettingStatus, PlaceBetArg, PumpNDumpStateDiff,
 };
 
-use crate::{
-    admin_cans::AdminCans,
-    utils::{env_kind, RunEnv},
-};
+use crate::admin_cans::AdminCans;
 
 #[enum_dispatch]
 pub(crate) trait GameBackendImpl {
