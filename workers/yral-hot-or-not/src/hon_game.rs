@@ -15,7 +15,7 @@ use worker_utils::{
 };
 
 use crate::{
-    consts::DEFAULT_ONBOARDING_REWARD_SATS,
+    consts::{DEFAULT_ONBOARDING_REWARD_SATS, MAXIMUM_VOTE_AMOUNT_SATS},
     get_hon_game_stub_env,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
     treasury_obj::CkBtcTreasuryStore,
@@ -219,7 +219,7 @@ impl UserHonGameState {
         &mut self,
         post_canister: Principal,
         post_id: u64,
-        vote_amount: u128,
+        mut vote_amount: u128,
         direction: HotOrNot,
         sentiment: HotOrNot,
         creator_principal: Option<Principal>,
@@ -231,6 +231,8 @@ impl UserHonGameState {
         if game_info.is_some() {
             return Err((400, WorkerError::AlreadyVotedOnPost));
         }
+
+        vote_amount = vote_amount.max(MAXIMUM_VOTE_AMOUNT_SATS);
 
         let mut storage = self.storage();
         let mut res = None::<(GameResult, u128)>;
