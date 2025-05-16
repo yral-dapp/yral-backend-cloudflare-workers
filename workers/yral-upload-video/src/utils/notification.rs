@@ -29,7 +29,7 @@ impl NotificationClient {
                 let res = client
                     .post(&url)
                     .bearer_auth(&self.api_key)
-                    .json(&json!({ "data": data.to_string() }))
+                    .json(&json!({ "data": { "message": data.to_string() } }))
                     .send()
                     .await;
 
