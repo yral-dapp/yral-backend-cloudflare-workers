@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - rupansh/hon-game
+      - main
     paths:
       - "workers/yral-hot-or-not/**"
       - ".github/workflows/deploy-hon-worker.yml"
