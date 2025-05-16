@@ -3,7 +3,7 @@ mod treasury;
 use std::collections::HashSet;
 
 use candid::{Nat, Principal};
-use num_bigint::{BigInt, ToBigInt};
+use num_bigint::{BigInt, BigUint, ToBigInt};
 use pump_n_dump_common::rest::{BalanceInfoResponse, CompletedGameInfo, UncommittedGameInfo};
 use serde::{Deserialize, Serialize};
 use treasury::DolrTreasury;
@@ -309,11 +309,15 @@ impl UserEphemeralState {
             .read(&self.storage())
             .await?
             .clone();
+
+        let off_chain_delta_to_subtract_biguint: BigUint;
         if off_chain_delta < 0u32.into() {
-            effective_balance.0 -= (-off_chain_delta.clone()).to_biguint().unwrap();
+            off_chain_delta_to_subtract_biguint = (-off_chain_delta).to_biguint().unwrap();
         } else {
-            effective_balance.0 += off_chain_delta.to_biguint().unwrap();
+            off_chain_delta_to_subtract_biguint = (off_chain_delta).to_biguint().unwrap();
         };
+
+        effective_balance.0 -= off_chain_delta_to_subtract_biguint.min(effective_balance.0.clone());
 
         Ok(effective_balance)
     }
