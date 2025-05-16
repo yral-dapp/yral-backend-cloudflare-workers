@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use candid::Principal;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use worker::console_error;
 
 const METADATA_SERVER_URL: &str = "https://yral-metadata.fly.dev";
@@ -28,7 +29,7 @@ impl NotificationClient {
                 let res = client
                     .post(&url)
                     .bearer_auth(&self.api_key)
-                    .json(&data)
+                    .json(&json!({ "data": data.to_string() }))
                     .send()
                     .await;
 
@@ -71,3 +72,5 @@ impl Display for NotificationType {
         }
     }
 }
+
+
