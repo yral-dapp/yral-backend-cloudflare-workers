@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use candid::Principal;
 use hon_worker_common::{
@@ -37,6 +37,8 @@ pub struct UserHonGameState {
     treasury_amount: CkBtcTreasuryStore,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
+    // unix timestamp in millis, None if user has never claimed airdrop before
+    last_airdrop_claimed_at: StorageCell<Option<u64>>,
     // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
 }
@@ -44,6 +46,24 @@ pub struct UserHonGameState {
 impl UserHonGameState {
     fn storage(&self) -> SafeStorage {
         self.state.storage().into()
+    }
+
+    async fn is_airdrop_claimed(&mut self) -> Result<bool> {
+        let storage = self.storage();
+        let last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
+        let &Some(last_claimed_timestamp) = last_claimed_timestamp else {
+            // user has never claimed airdrop before
+            return Ok(false);
+        };
+
+        let now = Date::now().as_millis();
+
+        let duration_24h = Duration::from_secs(60 * 60 * 24).as_millis() as u64; // will fit
+
+        // user is blocked from claiming til 24hrs since last claim
+        let blocked_window = last_claimed_timestamp..(last_claimed_timestamp + duration_24h);
+
+        Ok(blocked_window.contains(&now))
     }
 
     async fn games(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
@@ -294,7 +314,7 @@ impl UserHonGameState {
             .map_err(|_| (500, WorkerError::Internal("failed to get games".into())))?
             .insert((post_canister, post_id), game_info.clone());
         self.storage()
-            .put(&format!("games-{}-{}", post_canister, post_id), &game_info)
+            .put(&format!("games-{post_canister}-{post_id}"), &game_info)
             .await
             .map_err(|_| {
                 (
@@ -325,6 +345,7 @@ impl DurableObject for UserHonGameState {
             airdrop_amount: StorageCell::new("airdrop_amount", || {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
+            last_airdrop_claimed_at: StorageCell::new("last_airdrop_claimed_at", || None),
             games: None,
         }
     }
@@ -350,6 +371,12 @@ impl DurableObject for UserHonGameState {
                     Ok(res) => Response::from_json(&res),
                     Err((code, msg)) => worker_err_to_resp(code, msg),
                 }
+            })
+            .get_async("/is_airdrop_claimed", async |_, ctx| {
+                let this = ctx.data;
+                let is_airdrop_claimed = this.is_airdrop_claimed().await?;
+
+                Response::from_json(&is_airdrop_claimed)
             })
             .get_async("/balance", async |_, ctx| {
                 let this = ctx.data;

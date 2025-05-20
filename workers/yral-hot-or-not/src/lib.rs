@@ -100,6 +100,18 @@ async fn user_sats_balance(ctx: RouteContext<()>) -> Result<Response> {
     Ok(res)
 }
 
+async fn is_airdrop_claimed(ctx: RouteContext<()>) -> Result<Response> {
+    let user_principal = parse_principal!(ctx, "user_principal");
+
+    let game_stub = get_hon_game_stub(&ctx, user_principal)?;
+
+    let res = game_stub
+        .fetch_with_str("http://fake_url.com/is_airdrop_claimed")
+        .await?;
+
+    Ok(res)
+}
+
 async fn game_info(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_principal = parse_principal!(ctx, "user_principal");
 
@@ -192,8 +204,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/vote/:user_principal", |req, ctx| {
             place_hot_or_not_vote(req, ctx)
         })
-        .post("/claim_airdrop/:user_principal", |_req, _ctx| {
+        .post_async("/claim_airdrop/:user_principal", async |_req, _ctx| {
             Response::empty()
+        })
+        .get_async("/is_airdrop_claimed/:user_principal", |_req, ctx| {
+            is_airdrop_claimed(ctx)
         })
         .post_async("/withdraw", withdraw_sats)
         .options("/*catchall", |_, _| Response::empty())
