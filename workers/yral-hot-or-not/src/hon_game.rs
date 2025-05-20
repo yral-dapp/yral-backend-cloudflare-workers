@@ -29,6 +29,15 @@ pub struct VoteRequestWithSentiment {
     pub post_creator: Option<Principal>,
 }
 
+//TODO: to be in yral-common
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ReferralInfo {
+    pub referrer: Principal,
+    pub referee: Principal,
+    pub amount: u64,
+    pub created_at: u64,
+}
+
 #[durable_object]
 pub struct UserHonGameState {
     state: State,
@@ -37,8 +46,9 @@ pub struct UserHonGameState {
     treasury_amount: CkBtcTreasuryStore,
     sats_balance: StorageCell<BigUint>,
     airdrop_amount: StorageCell<BigUint>,
-    // (canister_id, post_id) -> GameInfo
     games: Option<HashMap<(Principal, u64), GameInfo>>,
+    referral_history: Option<Vec<ReferralInfo>>,
+    referred_by: Option<(ReferralInfo)>,
 }
 
 impl UserHonGameState {
@@ -326,6 +336,8 @@ impl DurableObject for UserHonGameState {
                 BigUint::from(DEFAULT_ONBOARDING_REWARD_SATS)
             }),
             games: None,
+            referral_history: None,
+            referred_by: None,
         }
     }
 
