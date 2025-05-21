@@ -269,12 +269,6 @@ pub async fn process_message(
                         video_uid,
                         e.to_string()
                     );
-                    notif_client
-                        .send_notification(
-                            NotificationType::VideoUploadError,
-                            ic_agent.get_principal().ok(),
-                        )
-                        .await;
 
                     message.retry()
                 }
@@ -298,14 +292,6 @@ pub async fn process_message(
         }
         Err(e) => {
             console_error!("Error extracting video status. Error {}", e.to_string());
-
-            notif_client
-                .send_notification(
-                    NotificationType::VideoUploadError,
-                    ic_agent.get_principal().ok(),
-                )
-                .await;
-
             message.retry();
         }
     };
