@@ -32,11 +32,16 @@ yral-identity = { git = "https://github.com/yral-dapp/yral-identity", rev = "adb
     "ic-git",
     "wasm-bindgen",
 ] }
-# hon-worker-common = { path =  "../../../yral-common/hon-worker-common" }
-hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
+# TODO: remove this once merged
+# hon-worker-common = { path = "../../../yral-common/hon-worker-common", features = [
+#     "client",
+# ] }
+hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", rev = "9b6954a6fac81dfcf9814745ceb5b035fd4483e3" }
+# hon-worker-common = { git = "https://github.com/dolr-ai/yral-common", branch = "master" }
 # yral-canisters-client = { path = "../../../yral-common/canisters-client", features = [
 #     "sns-ledger",
 # ] }
 yral-canisters-client = { git = "https://github.com/yral-dapp/yral-common", branch = "master", features = [
     "sns-ledger",
+    "individual-user",
 ] }
