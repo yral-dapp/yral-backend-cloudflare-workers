@@ -48,22 +48,10 @@ impl UserHonGameState {
         self.state.storage().into()
     }
 
-    async fn is_airdrop_claimed(&mut self) -> Result<bool> {
+    async fn last_airdrop_claimed_at(&mut self) -> Result<Option<u64>> {
         let storage = self.storage();
-        let last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
-        let &Some(last_claimed_timestamp) = last_claimed_timestamp else {
-            // user has never claimed airdrop before
-            return Ok(false);
-        };
-
-        let now = Date::now().as_millis();
-
-        let duration_24h = Duration::from_secs(60 * 60 * 24).as_millis() as u64; // will fit
-
-        // user is blocked from claiming til 24hrs since last claim
-        let blocked_window = last_claimed_timestamp..(last_claimed_timestamp + duration_24h);
-
-        Ok(blocked_window.contains(&now))
+        let &last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
+        Ok(last_claimed_timestamp)
     }
 
     async fn games(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
@@ -372,11 +360,11 @@ impl DurableObject for UserHonGameState {
                     Err((code, msg)) => worker_err_to_resp(code, msg),
                 }
             })
-            .get_async("/is_airdrop_claimed", async |_, ctx| {
+            .get_async("/last_airdrop_claimed_at", async |_, ctx| {
                 let this = ctx.data;
-                let is_airdrop_claimed = this.is_airdrop_claimed().await?;
+                let last_airdrop_claimed_at = this.last_airdrop_claimed_at().await?;
 
-                Response::from_json(&is_airdrop_claimed)
+                Response::from_json(&last_airdrop_claimed_at)
             })
             .get_async("/balance", async |_, ctx| {
                 let this = ctx.data;
