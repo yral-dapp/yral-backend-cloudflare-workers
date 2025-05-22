@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#700421b5e6fc9b9205503685bee6b97e11b28af6"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#5a1f19ee333cd5447c288d727b7b401a9c878c3a"
 dependencies = [
  "candid",
  "num-bigint",
@@ -5415,7 +5415,7 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#700421b5e6fc9b9205503685bee6b97e11b28af6"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#5a1f19ee333cd5447c288d727b7b401a9c878c3a"
 dependencies = [
  "anyhow",
  "candid",

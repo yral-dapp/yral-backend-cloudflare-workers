@@ -1,9 +1,10 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use candid::Principal;
 use hon_worker_common::{
-    GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot, PaginatedGamesReq, PaginatedGamesRes,
-    SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest, WorkerError,
+    AirdropClaimError, ClaimRequest, GameInfo, GameInfoReq, GameRes, GameResult, HotOrNot,
+    PaginatedGamesReq, PaginatedGamesRes, SatsBalanceInfo, VoteRequest, VoteRes, WithdrawRequest,
+    WorkerError,
 };
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,7 @@ use crate::{
     get_hon_game_stub_env,
     treasury::{CkBtcTreasury, CkBtcTreasuryImpl},
     treasury_obj::CkBtcTreasuryStore,
-    utils::worker_err_to_resp,
+    utils::err_to_resp,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -52,6 +53,34 @@ impl UserHonGameState {
         let storage = self.storage();
         let &last_claimed_timestamp = self.last_airdrop_claimed_at.read(&storage).await?;
         Ok(last_claimed_timestamp)
+    }
+
+    async fn claim_airdrop(
+        &mut self,
+        ClaimRequest {
+            user_principal: _,
+            amount,
+        }: ClaimRequest,
+    ) -> Result<StdResult<u64, AirdropClaimError>> {
+        let now = Date::now().as_millis();
+        let mut storage = self.storage();
+        // TODO: use txns instead of separate update calls
+        self.last_airdrop_claimed_at
+            .update(&mut storage, |time| {
+                *time = Some(now);
+            })
+            .await?;
+        self.sats_balance
+            .update(&mut storage, |balance| {
+                *balance += amount;
+            })
+            .await?;
+        self.airdrop_amount
+            .update(&mut storage, |balance| {
+                *balance += amount;
+            })
+            .await?;
+        Ok(Ok(amount))
     }
 
     async fn games(&mut self) -> Result<&mut HashMap<(Principal, u64), GameInfo>> {
@@ -357,7 +386,7 @@ impl DurableObject for UserHonGameState {
                     .await
                 {
                     Ok(res) => Response::from_json(&res),
-                    Err((code, msg)) => worker_err_to_resp(code, msg),
+                    Err((code, msg)) => err_to_resp(code, msg),
                 }
             })
             .get_async("/last_airdrop_claimed_at", async |_, ctx| {
@@ -401,17 +430,27 @@ impl DurableObject for UserHonGameState {
                     .redeem_sats_for_ckbtc(req_data.receiver, req_data.amount.into())
                     .await;
                 if let Err(e) = res {
-                    return worker_err_to_resp(e.0, e.1);
+                    return err_to_resp(e.0, e.1);
                 }
 
                 Response::ok("done")
+            })
+            .post_async("/claim_airdrop", async |mut req, ctx| {
+                let req_data: ClaimRequest = serde_json::from_str(&req.text().await?)?;
+                let this = ctx.data;
+                let res = this.claim_airdrop(req_data).await?;
+
+                match res {
+                    Ok(res) => Response::ok(res.to_string()),
+                    Err(e) => err_to_resp(400, e),
+                }
             })
             .post_async("/creator_reward", async |mut req, ctx| {
                 let amount: u128 = serde_json::from_str(&req.text().await?)?;
                 let this = ctx.data;
                 let res = this.add_creator_reward(amount).await;
                 if let Err(e) = res {
-                    return worker_err_to_resp(e.0, e.1);
+                    return err_to_resp(e.0, e.1);
                 }
 
                 Response::ok("done")
