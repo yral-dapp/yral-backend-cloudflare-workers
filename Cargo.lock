@@ -330,9 +330,9 @@ checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bitflags"
-version = "2.9.0"
+version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
+checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "bitvec"
@@ -464,9 +464,9 @@ dependencies = [
 
 [[package]]
 name = "candid"
-version = "0.10.13"
+version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a253bab4a9be502c82332b60cbeee6202ad0692834efeec95fae9f29db33d692"
+checksum = "f9d90f5a1426d0489283a0bd5da9ed406fb3e69597e0d823dcb88a1965bb58d2"
 dependencies = [
  "anyhow",
  "binread",
@@ -518,9 +518,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.22"
+version = "1.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
+checksum = "5f4ac86a9e5bc1e2b3449ab9d7d3a6a405e3d1bb28d7b9be8614f55846ae3766"
 dependencies = [
  "shlex",
 ]
@@ -1087,9 +1087,9 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.3.11"
+version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
+checksum = "cea14ef9355e3beab063703aa9dab15afd25f0667c341310c1e5274bb1d0da18"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
@@ -1443,9 +1443,23 @@ dependencies = [
 [[package]]
 name = "hon-worker-common"
 version = "0.1.0"
-source = "git+https://github.com/dolr-ai/yral-common?branch=master#43ff8a07115471fe4627e7278f768aaa898349fa"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#5a1f19ee333cd5447c288d727b7b401a9c878c3a"
 dependencies = [
  "candid",
+ "num-bigint",
+ "serde",
+ "thiserror 2.0.12",
+ "url",
+ "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
+]
+
+[[package]]
+name = "hon-worker-common"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
+dependencies = [
+ "candid",
+ "ic-agent 0.38.2",
  "num-bigint",
  "serde",
  "thiserror 2.0.12",
@@ -1555,9 +1569,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "497bbc33a26fdd4af9ed9c70d63f61cf56a938375fbb32df34db9b1cd6d643f2"
+checksum = "cf9f1e950e0d9d1d3c47184416723cf29c0d1f93bd8cccf37e4beb6b44f31710"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -2404,9 +2418,9 @@ checksum = "00210d6893afc98edb752b664b8890f0ef174c8adbb8d0be9710fa66fbbf72d3"
 
 [[package]]
 name = "icu_properties"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2549ca8c7241c82f59c80ba2a6f415d931c5b58d24fb8412caa1a1f02c49139a"
+checksum = "016c619c1eeb94efb86809b015c58f479963de65bdb6253345c1a1276f22e32b"
 dependencies = [
  "displaydoc",
  "icu_collections",
@@ -2420,9 +2434,9 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8197e866e47b68f8f7d95249e172903bec06004b18b2937f1095d40a0c57de04"
+checksum = "298459143998310acd25ffe6810ed544932242d3f07083eee1084d83a71bd632"
 
 [[package]]
 name = "icu_provider"
@@ -4159,7 +4173,7 @@ checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 [[package]]
 name = "sns-validation"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "candid",
  "humantime",
@@ -5037,15 +5051,15 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "windows-core"
-version = "0.61.0"
+version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4763c1de310c86d75a878046489e2e5ba02c649d185f21c67d4cf8a56d098980"
+checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
 dependencies = [
  "windows-implement",
  "windows-interface",
  "windows-link",
  "windows-result",
- "windows-strings 0.4.0",
+ "windows-strings 0.4.2",
 ]
 
 [[package]]
@@ -5089,9 +5103,9 @@ dependencies = [
 
 [[package]]
 name = "windows-result"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c64fd11a4fd95df68efcfee5f44a294fe71b8bc6a91993e2791938abcc712252"
+checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
 dependencies = [
  "windows-link",
 ]
@@ -5107,9 +5121,9 @@ dependencies = [
 
 [[package]]
 name = "windows-strings"
-version = "0.4.0"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2ba9642430ee452d5a7aa78d72907ebe8cfda358e8cb7918a2050581322f97"
+checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
 dependencies = [
  "windows-link",
 ]
@@ -5401,7 +5415,22 @@ dependencies = [
 [[package]]
 name = "yral-canisters-client"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop#5a1f19ee333cd5447c288d727b7b401a9c878c3a"
+dependencies = [
+ "anyhow",
+ "candid",
+ "candid_parser",
+ "convert_case 0.6.0",
+ "ic-agent 0.38.2",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+]
+
+[[package]]
+name = "yral-canisters-client"
+version = "0.1.0"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "anyhow",
  "candid",
@@ -5416,16 +5445,18 @@ dependencies = [
 [[package]]
 name = "yral-canisters-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "candid",
  "ciborium",
  "crc32fast",
  "futures-util",
  "getrandom 0.2.16",
+ "hon-worker-common 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
  "ic-agent 0.38.2",
  "k256",
  "log",
+ "once_cell",
  "reqwest",
  "rust_decimal",
  "send_wrapper",
@@ -5435,7 +5466,7 @@ dependencies = [
  "thiserror 2.0.12",
  "url",
  "web-time",
- "yral-canisters-client",
+ "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
  "yral-grpc-traits",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=56e3f1f1f5f452673bee17739520c800c1264295)",
@@ -5447,7 +5478,7 @@ dependencies = [
 [[package]]
 name = "yral-grpc-traits"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "serde",
 ]
@@ -5460,7 +5491,7 @@ dependencies = [
  "console_error_panic_hook",
  "enum_dispatch",
  "getrandom 0.2.16",
- "hon-worker-common",
+ "hon-worker-common 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop)",
  "ic-agent 0.38.2",
  "k256",
  "num-bigint",
@@ -5469,7 +5500,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client",
+ "yral-canisters-client 0.1.0 (git+https://github.com/dolr-ai/yral-common?branch=feat%2Fsats-airdrop)",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-worker-utils",
 ]
@@ -5562,7 +5593,7 @@ dependencies = [
 [[package]]
 name = "yral-metrics"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "candid",
  "log",
@@ -5606,7 +5637,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "worker",
  "worker-macros",
- "yral-canisters-client",
+ "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
  "yral-canisters-common",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
  "yral-metadata-client 0.1.0 (git+https://github.com/yral-dapp/yral-metadata?rev=bf89af87c246c73109d65d3febf009e6ed3c4748)",
@@ -5618,20 +5649,20 @@ dependencies = [
 [[package]]
 name = "yral-pump-n-dump-common"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "candid",
  "serde",
  "serde_json",
  "uuid",
- "yral-canisters-client",
+ "yral-canisters-client 0.1.0 (git+https://github.com/yral-dapp/yral-common?branch=master)",
  "yral-identity 0.1.0 (git+https://github.com/yral-dapp/yral-identity?rev=adbf4be5cb62a26f2a90032261321bf1df33f08b)",
 ]
 
 [[package]]
 name = "yral-types"
 version = "0.1.0"
-source = "git+https://github.com/yral-dapp/yral-common?branch=master#58f03a9875a118b42e13184b69784490f8b0c3c1"
+source = "git+https://github.com/yral-dapp/yral-common?branch=master#69c8e2bd7d068ef51f59ad14890d4d526a3d4ba2"
 dependencies = [
  "ic-agent 0.38.2",
  "k256",
